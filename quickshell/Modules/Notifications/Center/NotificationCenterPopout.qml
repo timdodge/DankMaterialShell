@@ -7,9 +7,21 @@ DankPopout {
     id: root
 
     layerNamespace: "dms:notification-center-popout"
+    fullHeightSurface: true
 
     property bool notificationHistoryVisible: false
     property var triggerScreen: null
+    property real stablePopupHeight: 400
+    property real _lastAlignedContentHeight: -1
+
+    function updateStablePopupHeight() {
+        const item = contentLoader.item;
+        const target = item ? Theme.px(item.implicitHeight, dpr) : 400;
+        if (Math.abs(target - _lastAlignedContentHeight) < 0.5)
+            return;
+        _lastAlignedContentHeight = target;
+        stablePopupHeight = target;
+    }
 
     NotificationKeyboardController {
         id: keyboardController
@@ -20,9 +32,13 @@ DankPopout {
         }
     }
 
-    popupWidth: 400
-    popupHeight: contentLoader.item ? contentLoader.item.implicitHeight : 400
+    popupWidth: triggerScreen ? Math.min(500, Math.max(380, triggerScreen.width - 48)) : 400
+    popupHeight: stablePopupHeight
     positioning: ""
+    animationScaleCollapsed: 0.94
+    animationOffset: 0
+    suspendShadowWhileResizing: false
+
     screen: triggerScreen
     shouldBeVisible: notificationHistoryVisible
 
@@ -65,19 +81,32 @@ DankPopout {
     Connections {
         target: contentLoader
         function onLoaded() {
+            root.updateStablePopupHeight();
             if (root.shouldBeVisible)
                 Qt.callLater(root.setupKeyboardNavigation);
         }
     }
 
+    Connections {
+        target: contentLoader.item
+        function onImplicitHeightChanged() {
+            root.updateStablePopupHeight();
+        }
+    }
+
+    onDprChanged: updateStablePopupHeight()
+
     onShouldBeVisibleChanged: {
         if (shouldBeVisible) {
             NotificationService.onOverlayOpen();
+            updateStablePopupHeight();
             if (contentLoader.item)
                 Qt.callLater(setupKeyboardNavigation);
         } else {
             NotificationService.onOverlayClose();
             keyboardController.keyboardNavigationActive = false;
+            NotificationService.expandedGroups = {};
+            NotificationService.expandedMessages = {};
         }
     }
 
@@ -104,14 +133,13 @@ DankPopout {
 
             property var externalKeyboardController: null
             property real cachedHeaderHeight: 32
-
             implicitHeight: {
                 let baseHeight = Theme.spacingL * 2;
                 baseHeight += cachedHeaderHeight;
                 baseHeight += Theme.spacingM * 2;
 
                 const settingsHeight = notificationSettings.expanded ? notificationSettings.contentHeight : 0;
-                let listHeight = notificationHeader.currentTab === 0 ? notificationList.listContentHeight : Math.max(200, NotificationService.historyList.length * 80);
+                let listHeight = notificationHeader.currentTab === 0 ? notificationList.stableContentHeight : Math.max(200, NotificationService.historyList.length * 80);
                 if (notificationHeader.currentTab === 0 && NotificationService.groupedNotifications.length === 0) {
                     listHeight = 200;
                 }
@@ -130,9 +158,6 @@ DankPopout {
             }
 
             color: "transparent"
-            radius: Theme.cornerRadius
-            border.color: Qt.rgba(Theme.outline.r, Theme.outline.g, Theme.outline.b, 0.08)
-            border.width: 0
             focus: true
 
             Component.onCompleted: {
@@ -145,6 +170,22 @@ DankPopout {
                 if (event.key === Qt.Key_Escape) {
                     notificationHistoryVisible = false;
                     event.accepted = true;
+                    return;
+                }
+
+                if (event.key === Qt.Key_Left) {
+                    if (notificationHeader.currentTab > 0) {
+                        notificationHeader.currentTab = 0;
+                        event.accepted = true;
+                    }
+                    return;
+                }
+
+                if (event.key === Qt.Key_Right) {
+                    if (notificationHeader.currentTab === 0 && SettingsData.notificationHistoryEnabled) {
+                        notificationHeader.currentTab = 1;
+                        event.accepted = true;
+                    }
                     return;
                 }
                 if (notificationHeader.currentTab === 1) {
@@ -198,6 +239,7 @@ DankPopout {
                         visible: notificationHeader.currentTab === 0
                         width: parent.width
                         height: parent.height - notificationContent.cachedHeaderHeight - notificationSettings.height - contentColumnInner.spacing * 2
+                        cardAnimateExpansion: true
                     }
 
                     HistoryNotificationList {

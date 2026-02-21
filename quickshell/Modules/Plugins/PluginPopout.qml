@@ -5,7 +5,7 @@ import qs.Widgets
 DankPopout {
     id: root
 
-    layerNamespace: "dms-plugin:" + layerNamespacePlugin
+    layerNamespace: "dms:plugins:" + layerNamespacePlugin
 
     property var triggerScreen: null
     property Component pluginContent: null
@@ -25,10 +25,6 @@ DankPopout {
 
             implicitHeight: popoutColumn.implicitHeight + Theme.spacingL * 2
             color: "transparent"
-            radius: Theme.cornerRadius
-            border.width: 0
-            antialiasing: true
-            smooth: true
             focus: true
 
             Component.onCompleted: {

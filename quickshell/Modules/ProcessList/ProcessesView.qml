@@ -11,6 +11,7 @@ Item {
     property string searchText: ""
     property string expandedPid: ""
     property var contextMenu: null
+    property string processFilter: "all" // "all", "user", "system"
 
     property int selectedIndex: -1
     property bool keyboardNavigationActive: false
@@ -40,6 +41,12 @@ Item {
             return [];
 
         let procs = DgopService.allProcesses.slice();
+
+        if (processFilter === "user") {
+            procs = procs.filter(p => p.username === UserInfoService.username);
+        } else if (processFilter === "system") {
+            procs = procs.filter(p => p.username !== UserInfoService.username);
+        }
 
         if (searchText.length > 0) {
             const search = searchText.toLowerCase();
@@ -293,6 +300,11 @@ Item {
             Layout.fillHeight: true
             clip: true
             spacing: 2
+
+            add: root.searchText.length > 0 ? ListViewTransitions.add : null
+            remove: root.searchText.length > 0 ? ListViewTransitions.remove : null
+            displaced: root.searchText.length > 0 ? ListViewTransitions.displaced : null
+            move: root.searchText.length > 0 ? ListViewTransitions.move : null
 
             model: ScriptModel {
                 values: root.cachedProcesses

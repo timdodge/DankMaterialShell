@@ -99,13 +99,6 @@ BasePill {
                     width: implicitWidth
                     height: implicitHeight
 
-                    Behavior on width {
-                        NumberAnimation {
-                            duration: Theme.shortDuration
-                            easing.type: Easing.OutCubic
-                        }
-                    }
-
                     StyledTextMetrics {
                         id: cpuBaseline
                         font.pixelSize: Theme.barTextSize(root.barThickness, root.barConfig?.fontScale)
@@ -138,7 +131,8 @@ BasePill {
         anchors.fill: parent
         cursorShape: Qt.PointingHandCursor
         acceptedButtons: Qt.LeftButton
-        onPressed: {
+        onPressed: mouse => {
+            root.triggerRipple(this, mouse.x, mouse.y);
             DgopService.setSortBy("cpu");
             cpuClicked();
         }

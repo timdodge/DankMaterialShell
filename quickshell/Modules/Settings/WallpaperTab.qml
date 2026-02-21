@@ -18,6 +18,26 @@ Item {
         var screens = Quickshell.screens;
         return screens.length > 0 ? screens[0].name : "";
     }
+    property string currentWallpaper: {
+        if (!SessionData.perMonitorWallpaper)
+            return SessionData.wallpaperPath;
+        var map = SessionData.monitorWallpapers;
+        var screens = Quickshell.screens;
+        for (var i = 0; i < screens.length; i++) {
+            if (screens[i].name !== selectedMonitorName)
+                continue;
+            var screen = screens[i];
+            if (map[screen.name] !== undefined)
+                return map[screen.name];
+            if (screen.model && map[screen.model] !== undefined)
+                return map[screen.model];
+            var displayName = SettingsData.getScreenDisplayName(screen);
+            if (displayName && map[displayName] !== undefined)
+                return map[displayName];
+            break;
+        }
+        return SessionData.wallpaperPath;
+    }
 
     Component.onCompleted: {
         WallpaperCyclingService.cyclingActive;
@@ -55,19 +75,22 @@ Item {
                         radius: Theme.cornerRadius
                         color: Theme.surfaceVariant
 
-                        CachingImage {
+                        Image {
                             anchors.fill: parent
                             anchors.margins: 1
-                            imagePath: {
-                                var currentWallpaper = SessionData.perMonitorWallpaper ? SessionData.getMonitorWallpaper(selectedMonitorName) : SessionData.wallpaperPath;
-                                return (currentWallpaper !== "" && !currentWallpaper.startsWith("#")) ? currentWallpaper : "";
+                            source: {
+                                var wp = root.currentWallpaper;
+                                if (wp === "" || wp.startsWith("#"))
+                                    return "";
+                                if (wp.startsWith("file://"))
+                                    wp = wp.substring(7);
+                                return "file://" + wp.split('/').map(s => encodeURIComponent(s)).join('/');
                             }
                             fillMode: Image.PreserveAspectCrop
-                            visible: {
-                                var currentWallpaper = SessionData.perMonitorWallpaper ? SessionData.getMonitorWallpaper(selectedMonitorName) : SessionData.wallpaperPath;
-                                return currentWallpaper !== "" && !currentWallpaper.startsWith("#");
-                            }
-                            maxCacheSize: 160
+                            visible: root.currentWallpaper !== "" && !root.currentWallpaper.startsWith("#")
+                            sourceSize.width: 160
+                            sourceSize.height: 160
+                            asynchronous: true
                             layer.enabled: true
                             layer.effect: MultiEffect {
                                 maskEnabled: true
@@ -81,14 +104,8 @@ Item {
                             anchors.fill: parent
                             anchors.margins: 1
                             radius: Theme.cornerRadius - 1
-                            color: {
-                                var currentWallpaper = SessionData.perMonitorWallpaper ? SessionData.getMonitorWallpaper(selectedMonitorName) : SessionData.wallpaperPath;
-                                return currentWallpaper.startsWith("#") ? currentWallpaper : "transparent";
-                            }
-                            visible: {
-                                var currentWallpaper = SessionData.perMonitorWallpaper ? SessionData.getMonitorWallpaper(selectedMonitorName) : SessionData.wallpaperPath;
-                                return currentWallpaper !== "" && currentWallpaper.startsWith("#");
-                            }
+                            color: root.currentWallpaper.startsWith("#") ? root.currentWallpaper : "transparent"
+                            visible: root.currentWallpaper !== "" && root.currentWallpaper.startsWith("#")
                         }
 
                         Rectangle {
@@ -106,10 +123,7 @@ Item {
                             name: "image"
                             size: Theme.iconSizeLarge + 8
                             color: Theme.surfaceVariantText
-                            visible: {
-                                var currentWallpaper = SessionData.perMonitorWallpaper ? SessionData.getMonitorWallpaper(selectedMonitorName) : SessionData.wallpaperPath;
-                                return currentWallpaper === "";
-                            }
+                            visible: root.currentWallpaper === ""
                         }
 
                         Rectangle {
@@ -162,9 +176,8 @@ Item {
                                         onClicked: {
                                             if (!PopoutService.colorPickerModal)
                                                 return;
-                                            var currentWallpaper = SessionData.perMonitorWallpaper ? SessionData.getMonitorWallpaper(selectedMonitorName) : SessionData.wallpaperPath;
-                                            PopoutService.colorPickerModal.selectedColor = currentWallpaper.startsWith("#") ? currentWallpaper : Theme.primary;
-                                            PopoutService.colorPickerModal.pickerTitle = "Choose Wallpaper Color";
+                                            PopoutService.colorPickerModal.selectedColor = root.currentWallpaper.startsWith("#") ? root.currentWallpaper : Theme.primary;
+                                            PopoutService.colorPickerModal.pickerTitle = I18n.tr("Choose Wallpaper Color", "wallpaper color picker title");
                                             PopoutService.colorPickerModal.onColorSelectedCallback = function (selectedColor) {
                                                 if (SessionData.perMonitorWallpaper) {
                                                     SessionData.setMonitorWallpaper(selectedMonitorName, selectedColor);
@@ -182,10 +195,7 @@ Item {
                                     height: 32
                                     radius: 16
                                     color: Qt.rgba(255, 255, 255, 0.9)
-                                    visible: {
-                                        var currentWallpaper = SessionData.perMonitorWallpaper ? SessionData.getMonitorWallpaper(selectedMonitorName) : SessionData.wallpaperPath;
-                                        return currentWallpaper !== "";
-                                    }
+                                    visible: root.currentWallpaper !== ""
 
                                     DankIcon {
                                         anchors.centerIn: parent
@@ -227,10 +237,7 @@ Item {
                         anchors.verticalCenter: parent.verticalCenter
 
                         StyledText {
-                            text: {
-                                var currentWallpaper = SessionData.perMonitorWallpaper ? SessionData.getMonitorWallpaper(selectedMonitorName) : SessionData.wallpaperPath;
-                                return currentWallpaper ? currentWallpaper.split('/').pop() : "No wallpaper selected";
-                            }
+                            text: root.currentWallpaper ? root.currentWallpaper.split('/').pop() : I18n.tr("No wallpaper selected")
                             font.pixelSize: Theme.fontSizeLarge
                             color: Theme.surfaceText
                             elide: Text.ElideMiddle
@@ -240,41 +247,29 @@ Item {
                         }
 
                         StyledText {
-                            text: {
-                                var currentWallpaper = SessionData.perMonitorWallpaper ? SessionData.getMonitorWallpaper(selectedMonitorName) : SessionData.wallpaperPath;
-                                return currentWallpaper ? currentWallpaper : "";
-                            }
+                            text: root.currentWallpaper
                             font.pixelSize: Theme.fontSizeSmall
                             color: Theme.surfaceVariantText
                             elide: Text.ElideMiddle
                             maximumLineCount: 1
                             width: parent.width
                             horizontalAlignment: Text.AlignLeft
-                            visible: {
-                                var currentWallpaper = SessionData.perMonitorWallpaper ? SessionData.getMonitorWallpaper(selectedMonitorName) : SessionData.wallpaperPath;
-                                return currentWallpaper !== "";
-                            }
+                            visible: root.currentWallpaper !== ""
                         }
 
                         Row {
                             anchors.left: parent.left
                             spacing: Theme.spacingS
                             layoutDirection: I18n.isRtl ? Qt.RightToLeft : Qt.LeftToRight
-                            visible: {
-                                var currentWallpaper = SessionData.perMonitorWallpaper ? SessionData.getMonitorWallpaper(selectedMonitorName) : SessionData.wallpaperPath;
-                                return currentWallpaper !== "";
-                            }
+                            visible: root.currentWallpaper !== ""
 
                             DankActionButton {
                                 buttonSize: 32
                                 iconName: "skip_previous"
                                 iconSize: Theme.iconSizeSmall
-                                enabled: {
-                                    var currentWallpaper = SessionData.perMonitorWallpaper ? SessionData.getMonitorWallpaper(selectedMonitorName) : SessionData.wallpaperPath;
-                                    return currentWallpaper && !currentWallpaper.startsWith("#") && !currentWallpaper.startsWith("we");
-                                }
+                                enabled: root.currentWallpaper && !root.currentWallpaper.startsWith("#") && !root.currentWallpaper.startsWith("we")
                                 opacity: enabled ? 1 : 0.5
-                                backgroundColor: Theme.withAlpha(Theme.surfaceContainerHigh, Theme.popupTransparency)
+                                backgroundColor: Theme.surfaceContainerHigh
                                 iconColor: Theme.surfaceText
                                 onClicked: {
                                     if (SessionData.perMonitorWallpaper) {
@@ -289,12 +284,9 @@ Item {
                                 buttonSize: 32
                                 iconName: "skip_next"
                                 iconSize: Theme.iconSizeSmall
-                                enabled: {
-                                    var currentWallpaper = SessionData.perMonitorWallpaper ? SessionData.getMonitorWallpaper(selectedMonitorName) : SessionData.wallpaperPath;
-                                    return currentWallpaper && !currentWallpaper.startsWith("#") && !currentWallpaper.startsWith("we");
-                                }
+                                enabled: root.currentWallpaper && !root.currentWallpaper.startsWith("#") && !root.currentWallpaper.startsWith("we")
                                 opacity: enabled ? 1 : 0.5
-                                backgroundColor: Theme.withAlpha(Theme.surfaceContainerHigh, Theme.popupTransparency)
+                                backgroundColor: Theme.surfaceContainerHigh
                                 iconColor: Theme.surfaceText
                                 onClicked: {
                                     if (SessionData.perMonitorWallpaper) {
@@ -311,10 +303,7 @@ Item {
                 Item {
                     width: parent.width
                     height: fillModeGroup.height
-                    visible: {
-                        var currentWallpaper = SessionData.perMonitorWallpaper ? SessionData.getMonitorWallpaper(selectedMonitorName) : SessionData.wallpaperPath;
-                        return currentWallpaper !== "" && !currentWallpaper.startsWith("#");
-                    }
+                    visible: root.currentWallpaper !== "" && !root.currentWallpaper.startsWith("#")
 
                     DankButtonGroup {
                         id: fillModeGroup
@@ -329,18 +318,37 @@ Item {
                         textSize: Theme.fontSizeSmall
                         checkEnabled: false
                         currentIndex: {
-                            return internalModes.indexOf(SettingsData.wallpaperFillMode);
+                            var mode = SessionData.perMonitorWallpaper ? SessionData.getMonitorWallpaperFillMode(selectedMonitorName) : SettingsData.wallpaperFillMode;
+                            return internalModes.indexOf(mode);
                         }
                         onSelectionChanged: (index, selected) => {
                             if (!selected)
                                 return;
-                            SettingsData.set("wallpaperFillMode", internalModes[index]);
+                            if (SessionData.perMonitorWallpaper) {
+                                SessionData.setMonitorWallpaperFillMode(selectedMonitorName, internalModes[index]);
+                            } else {
+                                SettingsData.set("wallpaperFillMode", internalModes[index]);
+                            }
                         }
 
                         Connections {
                             target: SettingsData
                             function onWallpaperFillModeChanged() {
+                                if (SessionData.perMonitorWallpaper)
+                                    return;
                                 fillModeGroup.currentIndex = fillModeGroup.internalModes.indexOf(SettingsData.wallpaperFillMode);
+                            }
+                        }
+
+                        Connections {
+                            target: root
+                            function onSelectedMonitorNameChanged() {
+                                if (!SessionData.perMonitorWallpaper)
+                                    return;
+                                fillModeGroup.currentIndex = Qt.binding(() => {
+                                    var mode = SessionData.perMonitorWallpaper ? SessionData.getMonitorWallpaperFillMode(selectedMonitorName) : SettingsData.wallpaperFillMode;
+                                    return fillModeGroup.internalModes.indexOf(mode);
+                                });
                             }
                         }
                     }
@@ -499,7 +507,7 @@ Item {
                                                         return;
                                                     var lightWallpaper = SessionData.wallpaperPathLight;
                                                     PopoutService.colorPickerModal.selectedColor = lightWallpaper.startsWith("#") ? lightWallpaper : Theme.primary;
-                                                    PopoutService.colorPickerModal.pickerTitle = "Choose Light Mode Color";
+                                                    PopoutService.colorPickerModal.pickerTitle = I18n.tr("Choose Light Mode Color", "light mode wallpaper color picker title");
                                                     PopoutService.colorPickerModal.onColorSelectedCallback = function (selectedColor) {
                                                         SessionData.wallpaperPathLight = selectedColor;
                                                         SessionData.syncWallpaperForCurrentMode();
@@ -550,7 +558,7 @@ Item {
                             StyledText {
                                 text: {
                                     var lightWallpaper = SessionData.wallpaperPathLight;
-                                    return lightWallpaper ? lightWallpaper.split('/').pop() : "Not set";
+                                    return lightWallpaper ? lightWallpaper.split('/').pop() : I18n.tr("Not set", "wallpaper not set label");
                                 }
                                 font.pixelSize: Theme.fontSizeSmall
                                 color: Theme.surfaceVariantText
@@ -683,7 +691,7 @@ Item {
                                                         return;
                                                     var darkWallpaper = SessionData.wallpaperPathDark;
                                                     PopoutService.colorPickerModal.selectedColor = darkWallpaper.startsWith("#") ? darkWallpaper : Theme.primary;
-                                                    PopoutService.colorPickerModal.pickerTitle = "Choose Dark Mode Color";
+                                                    PopoutService.colorPickerModal.pickerTitle = I18n.tr("Choose Dark Mode Color", "dark mode wallpaper color picker title");
                                                     PopoutService.colorPickerModal.onColorSelectedCallback = function (selectedColor) {
                                                         SessionData.wallpaperPathDark = selectedColor;
                                                         SessionData.syncWallpaperForCurrentMode();
@@ -734,7 +742,7 @@ Item {
                             StyledText {
                                 text: {
                                     var darkWallpaper = SessionData.wallpaperPathDark;
-                                    return darkWallpaper ? darkWallpaper.split('/').pop() : "Not set";
+                                    return darkWallpaper ? darkWallpaper.split('/').pop() : I18n.tr("Not set", "wallpaper not set label");
                                 }
                                 font.pixelSize: Theme.fontSizeSmall
                                 color: Theme.surfaceVariantText
@@ -805,7 +813,7 @@ Item {
                                     return SettingsData.getScreenDisplayName(screens[i]);
                                 }
                             }
-                            return "No monitors";
+                            return I18n.tr("No monitors", "no monitors available label");
                         }
                         options: {
                             var screenNames = [];
@@ -836,7 +844,7 @@ Item {
                         currentValue: {
                             var screens = Quickshell.screens;
                             if (!SettingsData.matugenTargetMonitor || SettingsData.matugenTargetMonitor === "") {
-                                return screens.length > 0 ? SettingsData.getScreenDisplayName(screens[0]) + " (Default)" : "No monitors";
+                                return screens.length > 0 ? SettingsData.getScreenDisplayName(screens[0]) + " " + I18n.tr("(Default)", "default monitor label suffix") : I18n.tr("No monitors", "no monitors available label");
                             }
                             for (var i = 0; i < screens.length; i++) {
                                 if (screens[i].name === SettingsData.matugenTargetMonitor) {
@@ -851,14 +859,14 @@ Item {
                             for (var i = 0; i < screens.length; i++) {
                                 var label = SettingsData.getScreenDisplayName(screens[i]);
                                 if (i === 0 && (!SettingsData.matugenTargetMonitor || SettingsData.matugenTargetMonitor === "")) {
-                                    label += " (Default)";
+                                    label += " " + I18n.tr("(Default)", "default monitor label suffix");
                                 }
                                 screenNames.push(label);
                             }
                             return screenNames;
                         }
                         onValueChanged: value => {
-                            var cleanValue = value.replace(" (Default)", "");
+                            var cleanValue = value.replace(" " + I18n.tr("(Default)", "default monitor label suffix"), "");
                             var screens = Quickshell.screens;
                             for (var i = 0; i < screens.length; i++) {
                                 if (SettingsData.getScreenDisplayName(screens[i]) === cleanValue) {
@@ -933,11 +941,11 @@ Item {
                                 height: 45
                                 model: [
                                     {
-                                        "text": "Interval",
+                                        "text": I18n.tr("Interval", "wallpaper cycling mode tab"),
                                         "icon": "schedule"
                                     },
                                     {
-                                        "text": "Time",
+                                        "text": I18n.tr("Time", "wallpaper cycling mode tab"),
                                         "icon": "access_time"
                                     }
                                 ]
@@ -973,7 +981,7 @@ Item {
 
                     SettingsDropdownRow {
                         id: intervalDropdown
-                        property var intervalOptions: ["5 seconds", "10 seconds", "15 seconds", "20 seconds", "25 seconds", "30 seconds", "35 seconds", "40 seconds", "45 seconds", "50 seconds", "55 seconds", "1 minute", "5 minutes", "15 minutes", "30 minutes", "1 hour", "1.5 hours", "2 hours", "3 hours", "4 hours", "6 hours", "8 hours", "12 hours"]
+                        property var intervalOptions: [I18n.tr("5 seconds", "wallpaper interval"), I18n.tr("10 seconds", "wallpaper interval"), I18n.tr("15 seconds", "wallpaper interval"), I18n.tr("20 seconds", "wallpaper interval"), I18n.tr("25 seconds", "wallpaper interval"), I18n.tr("30 seconds", "wallpaper interval"), I18n.tr("35 seconds", "wallpaper interval"), I18n.tr("40 seconds", "wallpaper interval"), I18n.tr("45 seconds", "wallpaper interval"), I18n.tr("50 seconds", "wallpaper interval"), I18n.tr("55 seconds", "wallpaper interval"), I18n.tr("1 minute", "wallpaper interval"), I18n.tr("5 minutes", "wallpaper interval"), I18n.tr("15 minutes", "wallpaper interval"), I18n.tr("30 minutes", "wallpaper interval"), I18n.tr("1 hour", "wallpaper interval"), I18n.tr("1 hour 30 minutes", "wallpaper interval"), I18n.tr("2 hours", "wallpaper interval"), I18n.tr("3 hours", "wallpaper interval"), I18n.tr("4 hours", "wallpaper interval"), I18n.tr("6 hours", "wallpaper interval"), I18n.tr("8 hours", "wallpaper interval"), I18n.tr("12 hours", "wallpaper interval")]
 
                         property var intervalValues: [5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 300, 900, 1800, 3600, 5400, 7200, 10800, 14400, 21600, 28800, 43200]
                         tab: "wallpaper"
@@ -997,7 +1005,7 @@ Item {
                                 currentSeconds = SessionData.wallpaperCyclingInterval;
                             }
                             const index = intervalValues.indexOf(currentSeconds);
-                            return index >= 0 ? intervalOptions[index] : "5 minutes";
+                            return index >= 0 ? intervalOptions[index] : I18n.tr("5 minutes", "wallpaper interval");
                         }
                         onValueChanged: value => {
                             const index = intervalOptions.indexOf(value);
@@ -1021,7 +1029,7 @@ Item {
                                         currentSeconds = SessionData.wallpaperCyclingInterval;
                                     }
                                     const index = intervalDropdown.intervalValues.indexOf(currentSeconds);
-                                    intervalDropdown.currentValue = index >= 0 ? intervalDropdown.intervalOptions[index] : "5 minutes";
+                                    intervalDropdown.currentValue = index >= 0 ? intervalDropdown.intervalOptions[index] : I18n.tr("5 minutes", "wallpaper interval");
                                 });
                             }
                         }
@@ -1294,7 +1302,7 @@ Item {
             browserIcon: "wallpaper"
             browserType: "wallpaper"
             showHiddenFiles: true
-            fileExtensions: ["*.jpg", "*.jpeg", "*.png", "*.bmp", "*.gif", "*.webp"]
+            fileExtensions: ["*.jpg", "*.jpeg", "*.png", "*.bmp", "*.gif", "*.webp", "*.jxl", "*.avif", "*.heif", "*.exr"]
             onFileSelected: path => {
                 if (SessionData.perMonitorWallpaper) {
                     SessionData.setMonitorWallpaper(selectedMonitorName, path);
@@ -1316,7 +1324,7 @@ Item {
             browserIcon: "light_mode"
             browserType: "wallpaper"
             showHiddenFiles: true
-            fileExtensions: ["*.jpg", "*.jpeg", "*.png", "*.bmp", "*.gif", "*.webp"]
+            fileExtensions: ["*.jpg", "*.jpeg", "*.png", "*.bmp", "*.gif", "*.webp", "*.jxl", "*.avif", "*.heif", "*.exr"]
             onFileSelected: path => {
                 SessionData.wallpaperPathLight = path;
                 SessionData.syncWallpaperForCurrentMode();
@@ -1336,7 +1344,7 @@ Item {
             browserIcon: "dark_mode"
             browserType: "wallpaper"
             showHiddenFiles: true
-            fileExtensions: ["*.jpg", "*.jpeg", "*.png", "*.bmp", "*.gif", "*.webp"]
+            fileExtensions: ["*.jpg", "*.jpeg", "*.png", "*.bmp", "*.gif", "*.webp", "*.jxl", "*.avif", "*.heif", "*.exr"]
             onFileSelected: path => {
                 SessionData.wallpaperPathDark = path;
                 SessionData.syncWallpaperForCurrentMode();

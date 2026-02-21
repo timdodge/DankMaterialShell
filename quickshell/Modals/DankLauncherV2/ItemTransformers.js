@@ -1,6 +1,6 @@
 .pragma library
 
-.import "ControllerUtils.js" as Utils
+    .import "ControllerUtils.js" as Utils
 
 function transformApp(app, override, defaultActions, primaryActionLabel) {
     var appId = app.id || app.execString || app.exec || "";
@@ -31,7 +31,11 @@ function transformApp(app, override, defaultActions, primaryActionLabel) {
             name: primaryActionLabel,
             icon: "open_in_new",
             action: "launch"
-        }
+        },
+        _hName: "",
+        _hSub: "",
+        _hRich: false,
+        _preScored: undefined
     };
 }
 
@@ -66,7 +70,11 @@ function transformCoreApp(app, openLabel) {
             name: openLabel,
             icon: "open_in_new",
             action: "launch"
-        }
+        },
+        _hName: "",
+        _hSub: "",
+        _hRich: false,
+        _preScored: undefined
     };
 }
 
@@ -100,40 +108,60 @@ function transformBuiltInLauncherItem(item, pluginId, openLabel) {
             name: openLabel,
             icon: "open_in_new",
             action: "execute"
-        }
+        },
+        _hName: "",
+        _hSub: "",
+        _hRich: false,
+        _preScored: item._preScored
     };
 }
 
-function transformFileResult(file, openLabel, openFolderLabel, copyPathLabel) {
+function transformFileResult(file, openLabel, openFolderLabel, copyPathLabel, openTerminalLabel) {
     var filename = file.path ? file.path.split("/").pop() : "";
     var dirname = file.path ? file.path.substring(0, file.path.lastIndexOf("/")) : "";
+    var isDir = file.is_dir || false;
+
+    var actions = [];
+    if (isDir) {
+        if (openTerminalLabel) {
+            actions.push({
+                name: openTerminalLabel,
+                icon: "terminal",
+                action: "open_terminal"
+            });
+        }
+    } else {
+        actions.push({
+            name: openFolderLabel,
+            icon: "folder_open",
+            action: "open_folder"
+        });
+    }
+    actions.push({
+        name: copyPathLabel,
+        icon: "content_copy",
+        action: "copy_path"
+    });
 
     return {
         id: file.path || "",
         type: "file",
         name: filename,
         subtitle: dirname,
-        icon: Utils.getFileIcon(filename),
+        icon: isDir ? "folder" : Utils.getFileIcon(filename),
         iconType: "material",
         section: "files",
         data: file,
-        actions: [
-            {
-                name: openFolderLabel,
-                icon: "folder_open",
-                action: "open_folder"
-            },
-            {
-                name: copyPathLabel,
-                icon: "content_copy",
-                action: "copy_path"
-            }
-        ],
+        actions: actions,
         primaryAction: {
             name: openLabel,
             icon: "open_in_new",
             action: "open"
-        }
+        },
+        _hName: "",
+        _hSub: "",
+        _hRich: false,
+        _preScored: undefined
     };
 }
 
@@ -166,29 +194,11 @@ function transformPluginItem(item, pluginId, selectLabel) {
             name: selectLabel,
             icon: "check",
             action: "execute"
-        }
-    };
-}
-
-function createCalculatorItem(calc, query, copyLabel) {
-    return {
-        id: "calculator_result",
-        type: "calculator",
-        name: calc.displayResult,
-        subtitle: query + " =",
-        icon: "calculate",
-        iconType: "material",
-        section: "calculator",
-        data: {
-            expression: calc.expression,
-            result: calc.result
         },
-        actions: [],
-        primaryAction: {
-            name: copyLabel,
-            icon: "content_copy",
-            action: "copy"
-        }
+        _hName: "",
+        _hSub: "",
+        _hRich: false,
+        _preScored: item._preScored
     };
 }
 
@@ -218,6 +228,10 @@ function createPluginBrowseItem(pluginId, plugin, trigger, isBuiltIn, isAllowed,
             name: browseLabel,
             icon: "arrow_forward",
             action: "browse_plugin"
-        }
+        },
+        _hName: "",
+        _hSub: "",
+        _hRich: false,
+        _preScored: undefined
     };
 }

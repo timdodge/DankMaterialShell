@@ -8,6 +8,7 @@ import qs.Widgets
 FloatingWindow {
     id: settingsModal
 
+    property bool disablePopupTransparency: true
     property var profileBrowser: profileBrowserLoader.item
     property var wallpaperBrowser: wallpaperBrowserLoader.item
 
@@ -127,7 +128,7 @@ FloatingWindow {
             browserIcon: "person"
             browserType: "profile"
             showHiddenFiles: true
-            fileExtensions: ["*.jpg", "*.jpeg", "*.png", "*.bmp", "*.gif", "*.webp"]
+            fileExtensions: ["*.jpg", "*.jpeg", "*.png", "*.bmp", "*.gif", "*.webp", "*.jxl", "*.avif", "*.heif", "*.exr"]
             onFileSelected: path => {
                 PortalService.setProfileImage(path);
                 close();
@@ -151,7 +152,7 @@ FloatingWindow {
             browserIcon: "wallpaper"
             browserType: "wallpaper"
             showHiddenFiles: true
-            fileExtensions: ["*.jpg", "*.jpeg", "*.png", "*.bmp", "*.gif", "*.webp"]
+            fileExtensions: ["*.jpg", "*.jpeg", "*.png", "*.bmp", "*.gif", "*.webp", "*.jxl", "*.avif", "*.heif", "*.exr"]
             onFileSelected: path => {
                 SessionData.setWallpaper(path);
                 close();

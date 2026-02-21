@@ -67,6 +67,8 @@ Item {
                                 modes.push("Sway");
                             } else if (CompositorService.isScroll) {
                                 modes.push("Scroll");
+                            } else if (CompositorService.isMiracle) {
+                                modes.push("Miracle");
                             } else {
                                 modes.push(I18n.tr("Compositor"));
                             }
@@ -413,6 +415,15 @@ Item {
                     checked: SettingsData.dankLauncherV2ShowFooter
                     enabled: SettingsData.dankLauncherV2Size !== "micro"
                     onToggled: checked => SettingsData.set("dankLauncherV2ShowFooter", checked)
+                }
+
+                SettingsToggleRow {
+                    settingKey: "dankLauncherV2UnloadOnClose"
+                    tags: ["launcher", "unload", "close", "memory", "vram"]
+                    text: I18n.tr("Unload on Close")
+                    description: I18n.tr("Free VRAM/memory when the launcher is closed. May cause a slight delay when reopening.")
+                    checked: SettingsData.dankLauncherV2UnloadOnClose
+                    onToggled: checked => SettingsData.set("dankLauncherV2UnloadOnClose", checked)
                 }
 
                 SettingsToggleRow {
@@ -1056,6 +1067,8 @@ Item {
                 iconName: "history"
                 title: I18n.tr("Recently Used Apps")
                 settingKey: "recentApps"
+                collapsible: true
+                expanded: false
 
                 property var rankedAppsModel: {
                     var ranking = AppUsageHistoryData.appUsageRanking;
@@ -1209,7 +1222,7 @@ Item {
 
                     StyledText {
                         width: parent.width
-                        text: "No apps have been launched yet."
+                        text: I18n.tr("No apps have been launched yet.")
                         font.pixelSize: Theme.fontSizeMedium
                         color: Theme.surfaceVariantText
                         horizontalAlignment: Text.AlignHCenter

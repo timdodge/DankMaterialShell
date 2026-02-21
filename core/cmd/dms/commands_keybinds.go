@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/AvengeMedia/DankMaterialShell/core/internal/keybinds"
 	"github.com/AvengeMedia/DankMaterialShell/core/internal/keybinds/providers"
@@ -63,6 +64,7 @@ func init() {
 	keybindsSetCmd.Flags().Bool("allow-when-locked", false, "Allow when screen is locked")
 	keybindsSetCmd.Flags().Int("cooldown-ms", 0, "Cooldown in milliseconds")
 	keybindsSetCmd.Flags().Bool("no-repeat", false, "Disable key repeat")
+	keybindsSetCmd.Flags().Bool("no-inhibiting", false, "Keep bind active when shortcuts are inhibited (allow-inhibiting=false)")
 	keybindsSetCmd.Flags().String("replace-key", "", "Original key to replace (removes old key)")
 	keybindsSetCmd.Flags().String("flags", "", "Hyprland bind flags (e.g., 'e' for repeat, 'l' for locked, 'r' for release)")
 
@@ -81,24 +83,35 @@ func init() {
 func initializeProviders() {
 	registry := keybinds.GetDefaultRegistry()
 
-	hyprlandProvider := providers.NewHyprlandProvider("$HOME/.config/hypr")
+	hyprlandProvider := providers.NewHyprlandProvider("")
 	if err := registry.Register(hyprlandProvider); err != nil {
 		log.Warnf("Failed to register Hyprland provider: %v", err)
 	}
 
-	mangowcProvider := providers.NewMangoWCProvider("$HOME/.config/mango")
+	mangowcProvider := providers.NewMangoWCProvider("")
 	if err := registry.Register(mangowcProvider); err != nil {
 		log.Warnf("Failed to register MangoWC provider: %v", err)
 	}
 
-	scrollProvider := providers.NewSwayProvider("$HOME/.config/scroll")
-	if err := registry.Register(scrollProvider); err != nil {
-		log.Warnf("Failed to register Scroll provider: %v", err)
+	configDir, _ := os.UserConfigDir()
+
+	if configDir != "" {
+		scrollProvider := providers.NewSwayProvider(filepath.Join(configDir, "scroll"))
+		if err := registry.Register(scrollProvider); err != nil {
+			log.Warnf("Failed to register Scroll provider: %v", err)
+		}
 	}
 
-	swayProvider := providers.NewSwayProvider("$HOME/.config/sway")
-	if err := registry.Register(swayProvider); err != nil {
-		log.Warnf("Failed to register Sway provider: %v", err)
+	miracleProvider := providers.NewMiracleProvider("")
+	if err := registry.Register(miracleProvider); err != nil {
+		log.Warnf("Failed to register Miracle WM provider: %v", err)
+	}
+
+	if configDir != "" {
+		swayProvider := providers.NewSwayProvider(filepath.Join(configDir, "sway"))
+		if err := registry.Register(swayProvider); err != nil {
+			log.Warnf("Failed to register Sway provider: %v", err)
+		}
 	}
 
 	niriProvider := providers.NewNiriProvider("")
@@ -143,6 +156,8 @@ func makeProviderWithPath(name, path string) keybinds.Provider {
 		return providers.NewSwayProvider(path)
 	case "scroll":
 		return providers.NewSwayProvider(path)
+	case "miracle":
+		return providers.NewMiracleProvider(path)
 	case "niri":
 		return providers.NewNiriProvider(path)
 	default:
@@ -211,6 +226,9 @@ func runKeybindsSet(cmd *cobra.Command, args []string) {
 	}
 	if v, _ := cmd.Flags().GetBool("no-repeat"); v {
 		options["repeat"] = false
+	}
+	if v, _ := cmd.Flags().GetBool("no-inhibiting"); v {
+		options["allow-inhibiting"] = false
 	}
 	if v, _ := cmd.Flags().GetString("flags"); v != "" {
 		options["flags"] = v

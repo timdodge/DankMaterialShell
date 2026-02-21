@@ -19,18 +19,16 @@ Rectangle {
 
     Behavior on height {
         NumberAnimation {
-            duration: Anims.durShort
-            easing.type: Easing.BezierSpline
-            easing.bezierCurve: Anims.emphasized
+            duration: Theme.shortDuration
+            easing.type: Theme.emphasizedEasing
         }
     }
 
     opacity: expanded ? 1 : 0
     Behavior on opacity {
         NumberAnimation {
-            duration: Anims.durShort
-            easing.type: Easing.BezierSpline
-            easing.bezierCurve: Anims.emphasized
+            duration: Theme.shortDuration
+            easing.type: Theme.emphasizedEasing
         }
     }
 
@@ -261,6 +259,50 @@ Rectangle {
                 anchors.verticalCenter: parent.verticalCenter
                 checked: SettingsData.notificationOverlayEnabled
                 onToggled: toggled => SettingsData.set("notificationOverlayEnabled", toggled)
+            }
+        }
+
+        Item {
+            width: parent.width
+            height: Math.max(privacyRow.implicitHeight, privacyToggle.implicitHeight) + Theme.spacingS
+
+            Row {
+                id: privacyRow
+                anchors.left: parent.left
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: Theme.spacingM
+
+                DankIcon {
+                    name: "privacy_tip"
+                    size: Theme.iconSizeSmall
+                    color: SettingsData.notificationPopupPrivacyMode ? Theme.primary : Theme.surfaceText
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+
+                Column {
+                    spacing: 2
+                    anchors.verticalCenter: parent.verticalCenter
+
+                    StyledText {
+                        text: I18n.tr("Privacy Mode")
+                        font.pixelSize: Theme.fontSizeSmall
+                        color: Theme.surfaceText
+                    }
+
+                    StyledText {
+                        text: I18n.tr("Hide notification content until expanded")
+                        font.pixelSize: Theme.fontSizeSmall - 1
+                        color: Theme.surfaceVariantText
+                    }
+                }
+            }
+
+            DankToggle {
+                id: privacyToggle
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                checked: SettingsData.notificationPopupPrivacyMode
+                onToggled: toggled => SettingsData.set("notificationPopupPrivacyMode", toggled)
             }
         }
 

@@ -45,11 +45,12 @@ Singleton {
         if (typeof SessionData === "undefined")
             return "";
 
+        var monitors = SessionData.monitorWallpapers;
         if (SessionData.perMonitorWallpaper) {
             var screens = Quickshell.screens;
             if (screens.length > 0) {
-                var firstMonitorWallpaper = SessionData.getMonitorWallpaper(screens[0].name);
-                return firstMonitorWallpaper || SessionData.wallpaperPath;
+                var s = screens[0];
+                return monitors[s.name] || (s.model ? monitors[s.model] : "") || SessionData.wallpaperPath;
             }
         }
 
@@ -59,6 +60,7 @@ Singleton {
         if (typeof SessionData === "undefined")
             return "";
 
+        var monitors = SessionData.monitorWallpapers;
         if (SessionData.perMonitorWallpaper) {
             var screens = Quickshell.screens;
             if (screens.length > 0) {
@@ -72,12 +74,20 @@ Singleton {
                     }
                 }
 
-                if (!targetMonitorExists) {
+                if (!targetMonitorExists)
                     targetMonitor = screens[0].name;
+
+                var s = null;
+                for (var j = 0; j < screens.length; j++) {
+                    if (screens[j].name === targetMonitor) {
+                        s = screens[j];
+                        break;
+                    }
                 }
 
-                var targetMonitorWallpaper = SessionData.getMonitorWallpaper(targetMonitor);
-                return targetMonitorWallpaper || SessionData.wallpaperPath;
+                if (s)
+                    return monitors[s.name] || (s.model ? monitors[s.model] : "") || SessionData.wallpaperPath;
+                return monitors[targetMonitor] || SessionData.wallpaperPath;
             }
         }
 
@@ -178,6 +188,8 @@ Singleton {
 
         if (typeof SettingsData !== "undefined" && SettingsData.currentThemeName) {
             switchTheme(SettingsData.currentThemeName, false, false);
+            const currentIsLight = (typeof SessionData !== "undefined") ? SessionData.isLightMode : false;
+            SettingsData.updateCosmicThemeMode(currentIsLight);
         }
 
         if (typeof SessionData !== "undefined" && SessionData.themeModeAutoEnabled) {
@@ -606,6 +618,58 @@ Singleton {
         }
     }
 
+    readonly property color buttonBg: {
+        switch (SettingsData.buttonColorMode) {
+        case "primaryContainer":
+            return primaryContainer;
+        case "secondary":
+            return secondary;
+        case "surfaceVariant":
+            return surfaceVariant;
+        default:
+            return primary;
+        }
+    }
+
+    readonly property color buttonText: {
+        switch (SettingsData.buttonColorMode) {
+        case "primaryContainer":
+            return primary;
+        case "secondary":
+            return surfaceText;
+        case "surfaceVariant":
+            return surfaceText;
+        default:
+            return primaryText;
+        }
+    }
+
+    readonly property color buttonHover: {
+        switch (SettingsData.buttonColorMode) {
+        case "primaryContainer":
+            return Qt.rgba(primary.r, primary.g, primary.b, 0.12);
+        case "secondary":
+            return Qt.rgba(surfaceText.r, surfaceText.g, surfaceText.b, 0.12);
+        case "surfaceVariant":
+            return Qt.rgba(surfaceText.r, surfaceText.g, surfaceText.b, 0.12);
+        default:
+            return primaryHover;
+        }
+    }
+
+    readonly property color buttonPressed: {
+        switch (SettingsData.buttonColorMode) {
+        case "primaryContainer":
+            return Qt.rgba(primary.r, primary.g, primary.b, 0.16);
+        case "secondary":
+            return Qt.rgba(surfaceText.r, surfaceText.g, surfaceText.b, 0.16);
+        case "surfaceVariant":
+            return Qt.rgba(surfaceText.r, surfaceText.g, surfaceText.b, 0.16);
+        default:
+            return primaryPressed;
+        }
+    }
+
     property color shadowMedium: Qt.rgba(0, 0, 0, 0.08)
     property color shadowStrong: Qt.rgba(0, 0, 0, 0.3)
 
@@ -650,13 +714,13 @@ Singleton {
     readonly property int currentAnimationSpeed: typeof SettingsData !== "undefined" ? SettingsData.animationSpeed : SettingsData.AnimationSpeed.Short
     readonly property var currentDurations: animationDurations[currentAnimationSpeed] || animationDurations[SettingsData.AnimationSpeed.Short]
 
-    property int shorterDuration: currentDurations.shorter
-    property int shortDuration: currentDurations.short
-    property int mediumDuration: currentDurations.medium
-    property int longDuration: currentDurations.long
-    property int extraLongDuration: currentDurations.extraLong
-    property int standardEasing: Easing.OutCubic
-    property int emphasizedEasing: Easing.OutQuart
+    readonly property int shorterDuration: (typeof SettingsData !== "undefined" && SettingsData.animationSpeed === SettingsData.AnimationSpeed.Custom) ? SettingsData.customAnimationDuration : currentDurations.shorter
+    readonly property int shortDuration: (typeof SettingsData !== "undefined" && SettingsData.animationSpeed === SettingsData.AnimationSpeed.Custom) ? SettingsData.customAnimationDuration : currentDurations.short
+    readonly property int mediumDuration: (typeof SettingsData !== "undefined" && SettingsData.animationSpeed === SettingsData.AnimationSpeed.Custom) ? SettingsData.customAnimationDuration : currentDurations.medium
+    readonly property int longDuration: (typeof SettingsData !== "undefined" && SettingsData.animationSpeed === SettingsData.AnimationSpeed.Custom) ? SettingsData.customAnimationDuration : currentDurations.long
+    readonly property int extraLongDuration: (typeof SettingsData !== "undefined" && SettingsData.animationSpeed === SettingsData.AnimationSpeed.Custom) ? SettingsData.customAnimationDuration : currentDurations.extraLong
+    readonly property int standardEasing: Easing.OutCubic
+    readonly property int emphasizedEasing: Easing.OutQuart
 
     readonly property var expressiveCurves: {
         "emphasized": [0.05, 0, 2 / 15, 0.06, 1 / 6, 0.4, 5 / 24, 0.82, 0.25, 1, 1, 1],
@@ -712,6 +776,77 @@ Singleton {
             "expressiveDefaultSpatial": baseDuration,
             "expressiveEffects": baseDuration * 0.4
         };
+    }
+
+    readonly property int notificationAnimationBaseDuration: {
+        if (typeof SettingsData === "undefined")
+            return 200;
+        if (SettingsData.notificationAnimationSpeed === SettingsData.AnimationSpeed.None)
+            return 0;
+        if (SettingsData.notificationAnimationSpeed === SettingsData.AnimationSpeed.Custom)
+            return SettingsData.notificationCustomAnimationDuration;
+        const presetMap = [0, 200, 400, 600];
+        return presetMap[SettingsData.notificationAnimationSpeed] ?? 200;
+    }
+
+    readonly property int notificationEnterDuration: {
+        const base = notificationAnimationBaseDuration;
+        return base === 0 ? 0 : Math.round(base * 0.875);
+    }
+
+    readonly property int notificationExitDuration: {
+        const base = notificationAnimationBaseDuration;
+        return base === 0 ? 0 : Math.round(base * 0.75);
+    }
+
+    readonly property int notificationExpandDuration: {
+        const base = notificationAnimationBaseDuration;
+        return base === 0 ? 0 : Math.round(base * 1.0);
+    }
+
+    readonly property int notificationCollapseDuration: {
+        const base = notificationAnimationBaseDuration;
+        return base === 0 ? 0 : Math.round(base * 0.85);
+    }
+
+    readonly property real notificationIconSizeNormal: 56
+    readonly property real notificationIconSizeCompact: 48
+    readonly property real notificationExpandedIconSizeNormal: 48
+    readonly property real notificationExpandedIconSizeCompact: 40
+    readonly property real notificationActionMinWidth: 48
+    readonly property real notificationButtonCornerRadius: cornerRadius / 2
+    readonly property real notificationHoverRevealMargin: spacingXL
+    readonly property real notificationContentSpacing: spacingXS
+    readonly property real notificationCardPadding: spacingM
+    readonly property real notificationCardPaddingCompact: spacingS
+
+    readonly property real stateLayerHover: 0.08
+    readonly property real stateLayerFocus: 0.12
+    readonly property real stateLayerPressed: 0.12
+    readonly property real stateLayerDrag: 0.16
+
+    readonly property int popoutAnimationDuration: {
+        if (typeof SettingsData === "undefined")
+            return 150;
+        if (SettingsData.syncComponentAnimationSpeeds) {
+            return Math.min(currentAnimationBaseDuration, 1000);
+        }
+        const presetMap = [0, 150, 300, 500];
+        if (SettingsData.popoutAnimationSpeed === SettingsData.AnimationSpeed.Custom)
+            return SettingsData.popoutCustomAnimationDuration;
+        return presetMap[SettingsData.popoutAnimationSpeed] ?? 150;
+    }
+
+    readonly property int modalAnimationDuration: {
+        if (typeof SettingsData === "undefined")
+            return 150;
+        if (SettingsData.syncComponentAnimationSpeeds) {
+            return Math.min(currentAnimationBaseDuration, 1000);
+        }
+        const presetMap = [0, 150, 300, 500];
+        if (SettingsData.modalAnimationSpeed === SettingsData.AnimationSpeed.Custom)
+            return SettingsData.modalCustomAnimationDuration;
+        return presetMap[SettingsData.modalAnimationSpeed] ?? 150;
     }
 
     property real cornerRadius: {
@@ -826,9 +961,9 @@ Singleton {
         }
 
         if (!isGreeterMode) {
-            // Skip with matugen because, our script runner will do it.
-            if (!matugenAvailable) {
-                PortalService.setLightMode(light);
+            PortalService.setLightMode(light);
+            if (typeof SettingsData !== "undefined") {
+                SettingsData.updateCosmicThemeMode(light);
             }
             generateSystemThemesFromCurrentTheme();
         }
@@ -885,7 +1020,7 @@ Singleton {
             if (themeData.variants.type === "multi" && themeData.variants.flavors && themeData.variants.accents) {
                 const defaults = themeData.variants.defaults || {};
                 const modeDefaults = defaults[colorMode] || defaults.dark || {};
-                const stored = typeof SettingsData !== "undefined" ? SettingsData.getRegistryThemeMultiVariant(themeId, modeDefaults) : modeDefaults;
+                const stored = typeof SettingsData !== "undefined" ? SettingsData.getRegistryThemeMultiVariant(themeId, modeDefaults, colorMode) : modeDefaults;
                 var flavorId = stored.flavor || modeDefaults.flavor || "";
                 const accentId = stored.accent || modeDefaults.accent || "";
                 var flavor = findVariant(themeData.variants.flavors, flavorId);
@@ -1279,8 +1414,8 @@ Singleton {
                         const defaults = customThemeRawData.variants.defaults || {};
                         const darkDefaults = defaults.dark || {};
                         const lightDefaults = defaults.light || defaults.dark || {};
-                        const storedDark = typeof SettingsData !== "undefined" ? SettingsData.getRegistryThemeMultiVariant(themeId, darkDefaults) : darkDefaults;
-                        const storedLight = typeof SettingsData !== "undefined" ? SettingsData.getRegistryThemeMultiVariant(themeId, lightDefaults) : lightDefaults;
+                        const storedDark = typeof SettingsData !== "undefined" ? SettingsData.getRegistryThemeMultiVariant(themeId, darkDefaults, "dark") : darkDefaults;
+                        const storedLight = typeof SettingsData !== "undefined" ? SettingsData.getRegistryThemeMultiVariant(themeId, lightDefaults, "light") : lightDefaults;
                         const darkFlavorId = storedDark.flavor || darkDefaults.flavor || "";
                         const lightFlavorId = storedLight.flavor || lightDefaults.flavor || "";
                         const accentId = storedDark.accent || darkDefaults.accent || "";

@@ -306,7 +306,8 @@ Item {
         showDirsFirst: false
         showDotAndDotDot: false
         showHidden: false
-        nameFilters: ["*.jpg", "*.jpeg", "*.png", "*.bmp", "*.gif", "*.webp"]
+        caseSensitive: false
+        nameFilters: ["*.jpg", "*.jpeg", "*.png", "*.bmp", "*.gif", "*.webp", "*.jxl", "*.avif", "*.heif", "*.exr"]
         showFiles: true
         showDirs: false
         sortField: FolderListModel.Name
@@ -320,7 +321,7 @@ Item {
         browserIcon: "folder_open"
         browserType: "wallpaper"
         showHiddenFiles: false
-        fileExtensions: ["*.jpg", "*.jpeg", "*.png", "*.bmp", "*.gif", "*.webp"]
+        fileExtensions: ["*.jpg", "*.jpeg", "*.png", "*.bmp", "*.gif", "*.webp", "*.jxl", "*.avif", "*.heif", "*.exr"]
         parentPopout: root.parentPopout
 
         onFileSelected: path => {
@@ -495,7 +496,7 @@ Item {
             StyledText {
                 anchors.centerIn: parent
                 visible: wallpaperFolderModel.count === 0
-                text: "No wallpapers found\n\nClick the folder icon below to browse"
+                text: I18n.tr("No wallpapers found\n\nClick the folder icon below to browse")
                 font.pixelSize: 14
                 color: Theme.outline
                 horizontalAlignment: Text.AlignHCenter

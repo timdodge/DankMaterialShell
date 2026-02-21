@@ -41,7 +41,7 @@ FocusScope {
                 width: parent.width
                 height: headerColumn.implicitHeight + Theme.spacingL * 2
                 radius: Theme.cornerRadius
-                color: Theme.withAlpha(Theme.surfaceContainerHigh, Theme.popupTransparency)
+                color: Theme.surfaceContainerHigh
                 border.width: 0
 
                 Column {
@@ -243,7 +243,7 @@ FocusScope {
                 width: parent.width
                 height: directoryColumn.implicitHeight + Theme.spacingL * 2
                 radius: Theme.cornerRadius
-                color: Theme.withAlpha(Theme.surfaceContainerHigh, Theme.popupTransparency)
+                color: Theme.surfaceContainerHigh
                 border.width: 0
 
                 Column {
@@ -286,7 +286,7 @@ FocusScope {
                 width: parent.width
                 height: Math.max(200, availableColumn.implicitHeight + Theme.spacingL * 2)
                 radius: Theme.cornerRadius
-                color: Theme.withAlpha(Theme.surfaceContainerHigh, Theme.popupTransparency)
+                color: Theme.surfaceContainerHigh
                 border.width: 0
 
                 Column {
@@ -375,8 +375,10 @@ FocusScope {
             if (!plugin || !PluginService.isPluginLoaded(pluginId))
                 return;
             var isLauncher = plugin.type === "launcher" || (plugin.capabilities && plugin.capabilities.includes("launcher"));
-            if (isLauncher)
+            if (isLauncher) {
+                pluginsTab.isReloading = true;
                 PluginService.reloadPlugin(pluginId);
+            }
         }
     }
 

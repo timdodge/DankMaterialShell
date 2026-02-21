@@ -4,7 +4,6 @@ import Quickshell.Wayland
 import Quickshell.Hyprland
 import qs.Common
 import qs.Services
-import qs.Widgets
 
 Item {
     id: root
@@ -14,10 +13,14 @@ Item {
     property bool spotlightOpen: false
     property bool keyboardActive: false
     property bool contentVisible: false
-    property alias spotlightContent: launcherContent
+    property var spotlightContent: launcherContentLoader.item
     property bool openedFromOverview: false
     property bool isClosing: false
     property bool _windowEnabled: true
+    property bool _pendingInitialize: false
+    property string _pendingQuery: ""
+    property string _pendingMode: ""
+    readonly property bool unloadContentOnClose: SettingsData.dankLauncherV2UnloadOnClose
 
     readonly property bool useHyprlandFocusGrab: CompositorService.useHyprlandFocusGrab
     readonly property var effectiveScreen: launcherWindow.screen
@@ -76,7 +79,22 @@ Item {
 
     signal dialogClosed
 
+    function _ensureContentLoadedAndInitialize(query, mode) {
+        _pendingQuery = query || "";
+        _pendingMode = mode || "";
+        _pendingInitialize = true;
+        contentVisible = true;
+        launcherContentLoader.active = true;
+
+        if (spotlightContent) {
+            _initializeAndShow(_pendingQuery, _pendingMode);
+            _pendingInitialize = false;
+        }
+    }
+
     function _initializeAndShow(query, mode) {
+        if (!spotlightContent)
+            return;
         contentVisible = true;
         spotlightContent.searchField.forceActiveFocus();
 
@@ -89,7 +107,13 @@ Item {
             spotlightContent.controller.activePluginId = "";
             spotlightContent.controller.activePluginName = "";
             spotlightContent.controller.pluginFilter = "";
+            spotlightContent.controller.fileSearchType = "all";
+            spotlightContent.controller.fileSearchExt = "";
+            spotlightContent.controller.fileSearchFolder = "";
+            spotlightContent.controller.fileSearchSort = "score";
             spotlightContent.controller.collapsedSections = {};
+            spotlightContent.controller.selectedFlatIndex = 0;
+            spotlightContent.controller.selectedItem = null;
             if (query) {
                 spotlightContent.controller.setSearchQuery(query);
             } else {
@@ -120,7 +144,7 @@ Item {
         if (useHyprlandFocusGrab)
             focusGrab.active = true;
 
-        _initializeAndShow("");
+        _ensureContentLoadedAndInitialize("", "");
     }
 
     function showWithQuery(query) {
@@ -138,7 +162,7 @@ Item {
         if (useHyprlandFocusGrab)
             focusGrab.active = true;
 
-        _initializeAndShow(query);
+        _ensureContentLoadedAndInitialize(query, "");
     }
 
     function hide() {
@@ -175,7 +199,7 @@ Item {
         if (useHyprlandFocusGrab)
             focusGrab.active = true;
 
-        _initializeAndShow("", mode);
+        _ensureContentLoadedAndInitialize("", mode);
     }
 
     function toggleWithMode(mode) {
@@ -196,10 +220,12 @@ Item {
 
     Timer {
         id: closeCleanupTimer
-        interval: Theme.expressiveDurations.expressiveFastSpatial + 50
+        interval: Theme.modalAnimationDuration + 50
         repeat: false
         onTriggered: {
             isClosing = false;
+            if (root.unloadContentOnClose)
+                launcherContentLoader.active = false;
             dialogClosed();
         }
     }
@@ -262,7 +288,7 @@ Item {
 
     PanelWindow {
         id: launcherWindow
-        visible: root._windowEnabled
+        visible: root._windowEnabled && (!root.unloadContentOnClose || spotlightOpen || isClosing)
         color: "transparent"
         exclusionMode: ExclusionMode.Ignore
 
@@ -307,10 +333,9 @@ Item {
             visible: contentVisible || opacity > 0
 
             Behavior on opacity {
-                NumberAnimation {
-                    duration: Theme.expressiveDurations.expressiveFastSpatial
-                    easing.type: Easing.BezierSpline
-                    easing.bezierCurve: contentVisible ? Theme.expressiveCurves.expressiveFastSpatial : Theme.expressiveCurves.emphasized
+                DankAnim {
+                    duration: Theme.modalAnimationDuration
+                    easing.bezierCurve: contentVisible ? Theme.expressiveCurves.expressiveDefaultSpatial : Theme.expressiveCurves.emphasized
                 }
             }
         }
@@ -343,26 +368,24 @@ Item {
             transformOrigin: Item.Center
 
             Behavior on opacity {
-                NumberAnimation {
-                    duration: Theme.expressiveDurations.fast
-                    easing.type: Easing.BezierSpline
-                    easing.bezierCurve: contentVisible ? Theme.expressiveCurves.expressiveFastSpatial : Theme.expressiveCurves.standardAccel
+                DankAnim {
+                    duration: Theme.modalAnimationDuration
+                    easing.bezierCurve: contentVisible ? Theme.expressiveCurves.expressiveDefaultSpatial : Theme.expressiveCurves.emphasized
                 }
             }
 
             Behavior on scale {
-                NumberAnimation {
-                    duration: Theme.expressiveDurations.fast
-                    easing.type: Easing.BezierSpline
-                    easing.bezierCurve: contentVisible ? Theme.expressiveCurves.expressiveFastSpatial : Theme.expressiveCurves.standardAccel
+                DankAnim {
+                    duration: Theme.modalAnimationDuration
+                    easing.bezierCurve: contentVisible ? Theme.expressiveCurves.expressiveDefaultSpatial : Theme.expressiveCurves.emphasized
                 }
             }
 
-            DankRectangle {
+            Rectangle {
                 anchors.fill: parent
                 color: root.backgroundColor
-                borderColor: root.borderColor
-                borderWidth: root.borderWidth
+                border.color: root.borderColor
+                border.width: root.borderWidth
                 radius: root.cornerRadius
             }
 
@@ -375,10 +398,22 @@ Item {
                 anchors.fill: parent
                 focus: keyboardActive
 
-                LauncherContent {
-                    id: launcherContent
+                Loader {
+                    id: launcherContentLoader
                     anchors.fill: parent
-                    parentModal: root
+                    active: !root.unloadContentOnClose || root.spotlightOpen || root.isClosing || root.contentVisible || root._pendingInitialize
+                    asynchronous: false
+                    sourceComponent: LauncherContent {
+                        focus: true
+                        parentModal: root
+                    }
+
+                    onLoaded: {
+                        if (root._pendingInitialize) {
+                            root._initializeAndShow(root._pendingQuery, root._pendingMode);
+                            root._pendingInitialize = false;
+                        }
+                    }
                 }
 
                 Keys.onEscapePressed: event => {

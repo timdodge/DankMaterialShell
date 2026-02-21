@@ -7,6 +7,7 @@ import qs.Widgets
 FloatingWindow {
     id: root
 
+    property bool disablePopupTransparency: true
     readonly property int modalWidth: 680
     readonly property int modalHeight: screen ? Math.min(720, screen.height - 80) : 720
 
@@ -17,7 +18,7 @@ FloatingWindow {
     }
 
     objectName: "changelogModal"
-    title: "What's New"
+    title: i18n("What's New")
     minimumSize: Qt.size(modalWidth, modalHeight)
     maximumSize: Qt.size(modalWidth, modalHeight)
     color: Theme.surfaceContainer
@@ -80,7 +81,7 @@ FloatingWindow {
                     onClicked: root.dismiss()
 
                     DankTooltip {
-                        text: "Close"
+                        text: i18n("Close")
                     }
                 }
             }
@@ -124,15 +125,15 @@ FloatingWindow {
                 spacing: Theme.spacingM
 
                 DankButton {
-                    text: "Read Full Release Notes"
+                    text: i18n("Read Full Release Notes")
                     iconName: "open_in_new"
                     backgroundColor: Theme.surfaceContainerHighest
                     textColor: Theme.surfaceText
-                    onClicked: Qt.openUrlExternally("https://danklinux.com/blog/v1-2-release")
+                    onClicked: Qt.openUrlExternally("https://danklinux.com/blog/v1-4-release")
                 }
 
                 DankButton {
-                    text: "Got It"
+                    text: i18n("Got It")
                     iconName: "check"
                     backgroundColor: Theme.primary
                     textColor: Theme.primaryText

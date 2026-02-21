@@ -12,6 +12,7 @@ var SPEC = {
     wallpaperPathDark: { def: "" },
     monitorWallpapersLight: { def: {} },
     monitorWallpapersDark: { def: {} },
+    monitorWallpaperFillModes: { def: {} },
     wallpaperTransition: { def: "fade" },
     includedTransitions: { def: ["fade", "wipe", "disc", "stripes", "iris bloom", "pixelate", "portal"] },
 
@@ -72,7 +73,11 @@ var SPEC = {
     appOverrides: { def: {} },
     searchAppActions: { def: true },
 
-    vpnLastConnected: { def: "" }
+    vpnLastConnected: { def: "" },
+
+    deviceMaxVolumes: { def: {} },
+    hiddenOutputDeviceNames: { def: [] },
+    hiddenInputDeviceNames: { def: [] }
 };
 
 function getValidKeys() {

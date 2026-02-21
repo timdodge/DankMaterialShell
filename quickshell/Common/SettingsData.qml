@@ -60,6 +60,7 @@ Singleton {
     property bool _hasLoaded: false
     property bool _isReadOnly: false
     property bool _hasUnsavedChanges: false
+    property bool _selfWrite: false
     property var _loadedSettingsSnapshot: null
     property var pluginSettings: ({})
     property var builtInPluginSettings: ({})
@@ -78,6 +79,8 @@ Singleton {
         builtInPluginSettings = updated;
         saveSettings();
     }
+
+    property bool clipboardEnterToPaste: false
 
     property var launcherPluginVisibility: ({})
 
@@ -134,6 +137,7 @@ Singleton {
     property string widgetBackgroundColor: "sch"
     property string widgetColorMode: "default"
     property string controlCenterTileColorMode: "primary"
+    property string buttonColorMode: "primary"
     property real cornerRadius: 12
     property int niriLayoutGapsOverride: -1
     property int niriLayoutRadiusOverride: -1
@@ -153,6 +157,14 @@ Singleton {
     property bool nightModeEnabled: false
     property int animationSpeed: SettingsData.AnimationSpeed.Short
     property int customAnimationDuration: 500
+    property bool syncComponentAnimationSpeeds: true
+    onSyncComponentAnimationSpeedsChanged: saveSettings()
+    property int popoutAnimationSpeed: SettingsData.AnimationSpeed.Short
+    property int popoutCustomAnimationDuration: 150
+    property int modalAnimationSpeed: SettingsData.AnimationSpeed.Short
+    property int modalCustomAnimationDuration: 150
+    property bool enableRippleEffects: true
+    onEnableRippleEffectsChanged: saveSettings()
     property string wallpaperFillMode: "Fill"
     property bool blurredWallpaperLayer: false
     property bool blurWallpaperOnOverview: false
@@ -241,6 +253,7 @@ Singleton {
     property bool showWorkspacePadding: false
     property bool workspaceScrolling: false
     property bool showWorkspaceApps: false
+    property bool workspaceDragReorder: true
     property bool groupWorkspaceApps: true
     property int maxWorkspaceIcons: 3
     property int workspaceAppIconSizeOffset: 0
@@ -260,15 +273,23 @@ Singleton {
     property bool scrollTitleEnabled: true
     property bool audioVisualizerEnabled: true
     property string audioScrollMode: "volume"
+    property int audioWheelScrollAmount: 5
     property bool clockCompactMode: false
     property bool focusedWindowCompactMode: false
     property bool runningAppsCompactMode: true
     property int barMaxVisibleApps: 0
     property int barMaxVisibleRunningApps: 0
     property bool barShowOverflowBadge: true
+    property bool appsDockHideIndicators: false
+    property bool appsDockColorizeActive: false
+    property string appsDockActiveColorMode: "primary"
+    property bool appsDockEnlargeOnHover: false
+    property int appsDockEnlargePercentage: 125
+    property int appsDockIconSizePercentage: 100
     property bool keyboardLayoutNameCompactMode: false
-    property bool runningAppsCurrentWorkspace: false
+    property bool runningAppsCurrentWorkspace: true
     property bool runningAppsGroupByApp: false
+    property bool runningAppsCurrentMonitor: false
     property var appIdSubstitutions: []
     property string centeringMode: "index"
     property string clockDateFormat: ""
@@ -294,6 +315,7 @@ Singleton {
     property int dankLauncherV2BorderThickness: 2
     property string dankLauncherV2BorderColor: "primary"
     property bool dankLauncherV2ShowFooter: true
+    property bool dankLauncherV2UnloadOnClose: false
 
     property string _legacyWeatherLocation: "New York, NY"
     property string _legacyWeatherCoordinates: "40.7128,-74.0060"
@@ -451,6 +473,8 @@ Singleton {
     property bool dockShowOverflowBadge: true
 
     property bool notificationOverlayEnabled: false
+    property bool notificationPopupShadowEnabled: true
+    property bool notificationPopupPrivacyMode: false
     property int overviewRows: 2
     property int overviewColumns: 5
     property real overviewScale: 0.16
@@ -465,6 +489,7 @@ Singleton {
     property bool lockScreenShowPasswordField: true
     property bool lockScreenShowMediaPlayer: true
     property bool lockScreenPowerOffMonitorsOnLock: false
+    property bool lockAtStartup: false
 
     property bool enableFprint: false
     property int maxFprintTries: 15
@@ -479,17 +504,21 @@ Singleton {
     property int notificationTimeoutCritical: 0
     property bool notificationCompactMode: false
     property int notificationPopupPosition: SettingsData.Position.Top
+    property int notificationAnimationSpeed: SettingsData.AnimationSpeed.Short
+    property int notificationCustomAnimationDuration: 400
     property bool notificationHistoryEnabled: true
     property int notificationHistoryMaxCount: 50
     property int notificationHistoryMaxAgeDays: 7
     property bool notificationHistorySaveLow: true
     property bool notificationHistorySaveNormal: true
     property bool notificationHistorySaveCritical: true
+    property var notificationRules: []
 
     property bool osdAlwaysShowValue: false
     property int osdPosition: SettingsData.Position.BottomCenter
     property bool osdVolumeEnabled: true
     property bool osdMediaVolumeEnabled: true
+    property bool osdMediaPlaybackEnabled: true
     property bool osdBrightnessEnabled: true
     property bool osdIdleInhibitorEnabled: true
     property bool osdMicMuteEnabled: true
@@ -986,6 +1015,42 @@ Singleton {
     function applyStoredIconTheme() {
         updateGtkIconTheme();
         updateQtIconTheme();
+        updateCosmicIconTheme();
+    }
+
+    function updateCosmicIconTheme() {
+        let cosmicThemeName = (iconTheme === "System Default") ? systemDefaultIconTheme : iconTheme;
+        if (!cosmicThemeName || cosmicThemeName === "System Default") {
+            const detectScript = `if command -v gsettings >/dev/null 2>&1; then
+            gsettings get org.gnome.desktop.interface icon-theme 2>/dev/null | sed "s/'//g"
+            elif command -v dconf >/dev/null 2>&1; then
+            dconf read /org/gnome/desktop/interface/icon-theme 2>/dev/null | sed "s/'//g"
+            fi`;
+            Proc.runCommand("detectCosmicIconTheme", ["sh", "-c", detectScript], (output, exitCode) => {
+                if (exitCode !== 0)
+                    return;
+                const detected = (output || "").trim();
+                if (!detected || detected === "System Default")
+                    return;
+                const detectedEscaped = detected.replace(/'/g, "'\\''");
+                const writeScript = `mkdir -p ${_configDir}/cosmic/com.system76.CosmicTk/v1
+                printf '"%s"\\n' '${detectedEscaped}' > ${_configDir}/cosmic/com.system76.CosmicTk/v1/icon_theme 2>/dev/null || true`;
+                Quickshell.execDetached(["sh", "-lc", writeScript]);
+            });
+            return;
+        }
+
+        const cosmicThemeNameEscaped = cosmicThemeName.replace(/'/g, "'\\''");
+        const script = `mkdir -p ${_configDir}/cosmic/com.system76.CosmicTk/v1
+        printf '"%s"\\n' '${cosmicThemeNameEscaped}' > ${_configDir}/cosmic/com.system76.CosmicTk/v1/icon_theme 2>/dev/null || true`;
+        Quickshell.execDetached(["sh", "-lc", script]);
+    }
+
+    function updateCosmicThemeMode(isLightMode) {
+        const isDark = isLightMode ? "false" : "true";
+        const script = `mkdir -p ${_configDir}/cosmic/com.system76.CosmicTheme.Mode/v1
+        printf '%s\\n' ${isDark} > ${_configDir}/cosmic/com.system76.CosmicTheme.Mode/v1/is_dark 2>/dev/null || true`;
+        Quickshell.execDetached(["sh", "-lc", script]);
     }
 
     function updateGtkIconTheme() {
@@ -1000,6 +1065,7 @@ Singleton {
 
         for config_dir in ${_configDir}/gtk-3.0 ${_configDir}/gtk-4.0; do
         settings_file="$config_dir/settings.ini"
+        [ -f "$settings_file" ] && [ ! -w "$settings_file" ] && continue
         if [ -f "$settings_file" ]; then
         if grep -q "^gtk-icon-theme-name=" "$settings_file"; then
         sed -i 's/^gtk-icon-theme-name=.*/gtk-icon-theme-name=${gtkThemeName}/' "$settings_file"
@@ -1178,6 +1244,7 @@ Singleton {
     function saveSettings() {
         if (_loading || _parseError || !_hasLoaded)
             return;
+        _selfWrite = true;
         settingsFile.setText(JSON.stringify(Store.toJson(root), null, 2));
         if (_isReadOnly)
             _checkSettingsWritable();
@@ -1791,6 +1858,7 @@ Singleton {
         iconTheme = themeName;
         updateGtkIconTheme();
         updateQtIconTheme();
+        updateCosmicIconTheme();
         saveSettings();
         if (typeof Theme !== "undefined" && Theme.currentTheme === Theme.dynamic)
             Theme.generateSystemThemesFromCurrentTheme();
@@ -1798,17 +1866,23 @@ Singleton {
 
     function setCursorTheme(themeName) {
         const updated = JSON.parse(JSON.stringify(cursorSettings));
+        if (updated.theme === themeName)
+            return;
         updated.theme = themeName;
         cursorSettings = updated;
         saveSettings();
+        updateXResources();
         updateCompositorCursor();
     }
 
     function setCursorSize(size) {
         const updated = JSON.parse(JSON.stringify(cursorSettings));
+        if (updated.size === size)
+            return;
         updated.size = size;
         cursorSettings = updated;
         saveSettings();
+        updateXResources();
         updateCompositorCursor();
     }
 
@@ -1816,7 +1890,6 @@ Singleton {
     // https://github.com/Supreeeme/xwayland-satellite/issues/104
     // no idea if this matters on other compositors but we also set XCURSOR stuff in the launcher
     function updateCompositorCursor() {
-        updateXResources();
         if (typeof CompositorService === "undefined")
             return;
         if (CompositorService.isNiri && typeof NiriService !== "undefined") {
@@ -1844,10 +1917,24 @@ Singleton {
 
         const script = `
             xresources_file="${xresourcesPath}"
-            temp_file="\${xresources_file}.tmp.$$"
+            [ -f "$xresources_file" ] && [ ! -w "$xresources_file" ] && exit 0
             theme_name="${themeName}"
             cursor_size="${size}"
 
+            current_theme=""
+            current_size=""
+            if [ -f "$xresources_file" ]; then
+                current_theme=$(grep -E '^[[:space:]]*Xcursor\\.theme:' "$xresources_file" 2>/dev/null | sed 's/.*:[[:space:]]*//' | head -1)
+                current_size=$(grep -E '^[[:space:]]*Xcursor\\.size:' "$xresources_file" 2>/dev/null | sed 's/.*:[[:space:]]*//' | head -1)
+            fi
+
+            [ "$current_theme" = "$theme_name" ] && [ "$current_size" = "$cursor_size" ] && exit 0
+
+            if [ -f "$xresources_file" ]; then
+                cp "$xresources_file" "\${xresources_file}.backup$(date +%s)"
+            fi
+
+            temp_file="\${xresources_file}.tmp.$$"
             if [ -f "$xresources_file" ]; then
                 grep -v '^[[:space:]]*Xcursor\\.theme:' "$xresources_file" | grep -v '^[[:space:]]*Xcursor\\.size:' > "$temp_file" 2>/dev/null || true
             else
@@ -2094,6 +2181,143 @@ Singleton {
         saveSettings();
     }
 
+    property bool _pendingExpandNotificationRules: false
+    property int _pendingNotificationRuleIndex: -1
+
+    function addNotificationRule() {
+        var rules = JSON.parse(JSON.stringify(notificationRules || []));
+        rules.push({
+            enabled: true,
+            field: "appName",
+            pattern: "",
+            matchType: "contains",
+            action: "default",
+            urgency: "default"
+        });
+        notificationRules = rules;
+        saveSettings();
+    }
+
+    function addNotificationRuleForNotification(appName, desktopEntry) {
+        var rules = JSON.parse(JSON.stringify(notificationRules || []));
+        var pattern = (desktopEntry && desktopEntry !== "") ? desktopEntry : (appName || "");
+        var field = (desktopEntry && desktopEntry !== "") ? "desktopEntry" : "appName";
+        var rule = {
+            enabled: true,
+            field: pattern ? field : "appName",
+            pattern: pattern || "",
+            matchType: pattern ? "exact" : "contains",
+            action: "default",
+            urgency: "default"
+        };
+        rules.push(rule);
+        notificationRules = rules;
+        saveSettings();
+        var index = rules.length - 1;
+        _pendingExpandNotificationRules = true;
+        _pendingNotificationRuleIndex = index;
+        return index;
+    }
+
+    function addMuteRuleForApp(appName, desktopEntry) {
+        var rules = JSON.parse(JSON.stringify(notificationRules || []));
+        var pattern = (desktopEntry && desktopEntry !== "") ? desktopEntry : (appName || "");
+        var field = (desktopEntry && desktopEntry !== "") ? "desktopEntry" : "appName";
+        if (pattern === "")
+            return;
+        rules.push({
+            enabled: true,
+            field: field,
+            pattern: pattern,
+            matchType: "exact",
+            action: "mute",
+            urgency: "default"
+        });
+        notificationRules = rules;
+        saveSettings();
+    }
+
+    function isAppMuted(appName, desktopEntry) {
+        const rules = notificationRules || [];
+        const pat = (desktopEntry && desktopEntry !== "" ? desktopEntry : appName || "").toString().toLowerCase();
+        if (!pat)
+            return false;
+        for (let i = 0; i < rules.length; i++) {
+            const r = rules[i];
+            if ((r.action || "").toString().toLowerCase() !== "mute" || r.enabled === false)
+                continue;
+            const field = (r.field || "appName").toString().toLowerCase();
+            const rulePat = (r.pattern || "").toString().toLowerCase();
+            if (!rulePat)
+                continue;
+            const useDesktop = field === "desktopentry";
+            const matches = (useDesktop && desktopEntry) ? (desktopEntry.toString().toLowerCase() === rulePat) : (appName && appName.toString().toLowerCase() === rulePat);
+            if (matches)
+                return true;
+            if (rulePat === pat)
+                return true;
+        }
+        return false;
+    }
+
+    function removeMuteRuleForApp(appName, desktopEntry) {
+        var rules = JSON.parse(JSON.stringify(notificationRules || []));
+        const app = (appName || "").toString().toLowerCase();
+        const desktop = (desktopEntry || "").toString().toLowerCase();
+        if (!app && !desktop)
+            return;
+        for (let i = rules.length - 1; i >= 0; i--) {
+            const r = rules[i];
+            if ((r.action || "").toString().toLowerCase() !== "mute")
+                continue;
+            const rulePat = (r.pattern || "").toString().toLowerCase();
+            if (!rulePat)
+                continue;
+            if (rulePat === app || rulePat === desktop) {
+                rules.splice(i, 1);
+                notificationRules = rules;
+                saveSettings();
+                return;
+            }
+        }
+    }
+
+    function updateNotificationRule(index, ruleData) {
+        var rules = JSON.parse(JSON.stringify(notificationRules || []));
+        if (index < 0 || index >= rules.length)
+            return;
+        var existing = rules[index] || {};
+        rules[index] = Object.assign({}, existing, ruleData || {});
+        notificationRules = rules;
+        saveSettings();
+    }
+
+    function updateNotificationRuleField(index, key, value) {
+        if (key === undefined || key === null || key === "")
+            return;
+        var patch = {};
+        patch[key] = value;
+        updateNotificationRule(index, patch);
+    }
+
+    function removeNotificationRule(index) {
+        var rules = JSON.parse(JSON.stringify(notificationRules || []));
+        if (index < 0 || index >= rules.length)
+            return;
+        rules.splice(index, 1);
+        notificationRules = rules;
+        saveSettings();
+    }
+
+    function getDefaultNotificationRules() {
+        return Spec.SPEC.notificationRules.def;
+    }
+
+    function resetNotificationRules() {
+        notificationRules = JSON.parse(JSON.stringify(Spec.SPEC.notificationRules.def));
+        saveSettings();
+    }
+
     function getDefaultAppIdSubstitutions() {
         return Spec.SPEC.appIdSubstitutions.def;
     }
@@ -2119,19 +2343,40 @@ Singleton {
             Theme.reloadCustomThemeVariant();
     }
 
-    function getRegistryThemeMultiVariant(themeId, defaults) {
+    function getRegistryThemeMultiVariant(themeId, defaults, mode) {
         var stored = registryThemeVariants[themeId];
-        if (stored && typeof stored === "object")
-            return stored;
-        return defaults || {};
+        if (!stored || typeof stored !== "object")
+            return defaults || {};
+        if ((stored.dark && typeof stored.dark === "object") || (stored.light && typeof stored.light === "object")) {
+            if (!mode)
+                return stored.dark || stored.light || defaults || {};
+            var modeData = stored[mode];
+            if (modeData && typeof modeData === "object")
+                return modeData;
+            return defaults || {};
+        }
+        return stored;
     }
 
-    function setRegistryThemeMultiVariant(themeId, flavor, accent) {
+    function setRegistryThemeMultiVariant(themeId, flavor, accent, mode) {
         var variants = JSON.parse(JSON.stringify(registryThemeVariants));
-        variants[themeId] = {
+        var existing = variants[themeId];
+        var perMode = {};
+        if (existing && typeof existing === "object") {
+            if ((existing.dark && typeof existing.dark === "object") || (existing.light && typeof existing.light === "object")) {
+                perMode = existing;
+            } else if (typeof existing.flavor === "string") {
+                perMode.dark = {
+                    flavor: existing.flavor,
+                    accent: existing.accent || ""
+                };
+            }
+        }
+        perMode[mode || "dark"] = {
             flavor: flavor,
             accent: accent
         };
+        variants[themeId] = perMode;
         registryThemeVariants = variants;
         saveSettings();
         if (typeof Theme !== "undefined")
@@ -2331,6 +2576,13 @@ Singleton {
 
     property alias settingsFile: settingsFile
 
+    Timer {
+        id: settingsFileReloadDebounce
+        interval: 50
+        onTriggered: settingsFile.reload()
+        repeat: false
+    }
+
     FileView {
         id: settingsFile
 
@@ -2338,7 +2590,14 @@ Singleton {
         blockLoading: true
         blockWrites: true
         atomicWrites: true
-        watchChanges: !isGreeterMode
+        watchChanges: true
+        onFileChanged: {
+            if (_selfWrite) {
+                _selfWrite = false;
+                return;
+            }
+            settingsFileReloadDebounce.restart();
+        }
         onLoaded: {
             if (isGreeterMode)
                 return;

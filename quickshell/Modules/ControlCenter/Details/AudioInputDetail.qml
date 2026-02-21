@@ -40,6 +40,24 @@ Rectangle {
             font.weight: Font.Medium
             anchors.verticalCenter: parent.verticalCenter
         }
+
+        Item {
+            height: 1
+            width: parent.width - headerText.width - settingsButton.width
+        }
+
+        DankActionButton {
+            id: settingsButton
+            anchors.verticalCenter: parent.verticalCenter
+            iconName: "settings"
+            buttonSize: 28
+            iconSize: 16
+            iconColor: Theme.surfaceVariantText
+            onClicked: {
+                PopoutService.closeControlCenter();
+                PopoutService.openSettingsWithTab("audio");
+            }
+        }
     }
 
     Row {
@@ -61,11 +79,17 @@ Rectangle {
             radius: (Theme.iconSize + Theme.spacingS * 2) / 2
             color: iconArea.containsMouse ? Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.12) : "transparent"
 
+            DankRipple {
+                id: iconRipple
+                cornerRadius: parent.radius
+            }
+
             MouseArea {
                 id: iconArea
                 anchors.fill: parent
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
+                onPressed: mouse => iconRipple.trigger(mouse.x, mouse.y)
                 onClicked: {
                     if (AudioService.source && AudioService.source.audio) {
                         AudioService.source.audio.muted = !AudioService.source.audio.muted;
@@ -126,15 +150,15 @@ Rectangle {
 
         function normalizePinList(value) {
             if (Array.isArray(value))
-                return value.filter(v => v)
+                return value.filter(v => v);
             if (typeof value === "string" && value.length > 0)
-                return [value]
-            return []
+                return [value];
+            return [];
         }
 
         function getPinnedInputs() {
-            const pins = SettingsData.audioInputDevicePins || {}
-            return normalizePinList(pins["preferredInput"])
+            const pins = SettingsData.audioInputDevicePins || {};
+            return normalizePinList(pins["preferredInput"]);
         }
 
         Column {
@@ -145,22 +169,25 @@ Rectangle {
             Repeater {
                 model: ScriptModel {
                     values: {
+                        const hidden = SessionData.hiddenInputDeviceNames ?? [];
                         const nodes = Pipewire.nodes.values.filter(node => {
-                            return node.audio && !node.isSink && !node.isStream;
+                            if (!node.audio || node.isSink || node.isStream)
+                                return false;
+                            return !hidden.includes(node.name);
                         });
                         const pinnedList = audioContent.getPinnedInputs();
 
                         let sorted = [...nodes];
                         sorted.sort((a, b) => {
                             // Pinned device first
-                            const aPinnedIndex = pinnedList.indexOf(a.name)
-                            const bPinnedIndex = pinnedList.indexOf(b.name)
+                            const aPinnedIndex = pinnedList.indexOf(a.name);
+                            const bPinnedIndex = pinnedList.indexOf(b.name);
                             if (aPinnedIndex !== -1 || bPinnedIndex !== -1) {
                                 if (aPinnedIndex === -1)
-                                    return 1
+                                    return 1;
                                 if (bPinnedIndex === -1)
-                                    return -1
-                                return aPinnedIndex - bPinnedIndex
+                                    return -1;
+                                return aPinnedIndex - bPinnedIndex;
                             }
                             // Then active device
                             if (a === AudioService.source && b !== AudioService.source)
@@ -276,30 +303,41 @@ Rectangle {
                             }
                         }
 
+                        DankRipple {
+                            id: pinRipple
+                            cornerRadius: parent.radius
+                        }
+
                         MouseArea {
                             anchors.fill: parent
                             cursorShape: Qt.PointingHandCursor
+                            onPressed: mouse => pinRipple.trigger(mouse.x, mouse.y)
                             onClicked: {
-                                const pins = JSON.parse(JSON.stringify(SettingsData.audioInputDevicePins || {}))
-                                let pinnedList = audioContent.normalizePinList(pins["preferredInput"])
-                                const pinIndex = pinnedList.indexOf(modelData.name)
+                                const pins = JSON.parse(JSON.stringify(SettingsData.audioInputDevicePins || {}));
+                                let pinnedList = audioContent.normalizePinList(pins["preferredInput"]);
+                                const pinIndex = pinnedList.indexOf(modelData.name);
 
                                 if (pinIndex !== -1) {
-                                    pinnedList.splice(pinIndex, 1)
+                                    pinnedList.splice(pinIndex, 1);
                                 } else {
-                                    pinnedList.unshift(modelData.name)
+                                    pinnedList.unshift(modelData.name);
                                     if (pinnedList.length > audioContent.maxPinnedInputs)
-                                        pinnedList = pinnedList.slice(0, audioContent.maxPinnedInputs)
+                                        pinnedList = pinnedList.slice(0, audioContent.maxPinnedInputs);
                                 }
 
                                 if (pinnedList.length > 0)
-                                    pins["preferredInput"] = pinnedList
+                                    pins["preferredInput"] = pinnedList;
                                 else
-                                    delete pins["preferredInput"]
+                                    delete pins["preferredInput"];
 
-                                SettingsData.set("audioInputDevicePins", pins)
+                                SettingsData.set("audioInputDevicePins", pins);
                             }
                         }
+                    }
+
+                    DankRipple {
+                        id: deviceRipple
+                        cornerRadius: parent.radius
                     }
 
                     MouseArea {
@@ -308,6 +346,10 @@ Rectangle {
                         anchors.rightMargin: pinInputRow.width + Theme.spacingS * 4
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
+                        onPressed: mouse => {
+                            let mapped = mapToItem(parent, mouse.x, mouse.y);
+                            deviceRipple.trigger(mapped.x, mapped.y);
+                        }
                         onClicked: {
                             if (modelData) {
                                 Pipewire.preferredDefaultAudioSource = modelData;

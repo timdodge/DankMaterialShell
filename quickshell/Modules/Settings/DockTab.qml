@@ -1,11 +1,21 @@
 import QtQuick
 import qs.Common
+import qs.Modals.FileBrowser
 import qs.Services
 import qs.Widgets
 import qs.Modules.Settings.Widgets
 
 Item {
     id: root
+
+    FileBrowserModal {
+        id: dockLogoFileBrowser
+        browserTitle: I18n.tr("Select Dock Launcher Logo")
+        browserIcon: "image"
+        browserType: "generic"
+        filterExtensions: ["*.svg", "*.png", "*.jpg", "*.jpeg", "*.webp"]
+        onFileSelected: path => SettingsData.set("dockLauncherLogoCustomPath", path.replace("file://", ""))
+    }
 
     DankFlickable {
         anchors.fill: parent
@@ -19,56 +29,6 @@ Item {
             width: Math.min(550, parent.width - Theme.spacingL * 2)
             anchors.horizontalCenter: parent.horizontalCenter
             spacing: Theme.spacingXL
-
-            SettingsCard {
-                width: parent.width
-                iconName: "swap_vert"
-                title: I18n.tr("Position")
-                settingKey: "dockPosition"
-
-                Item {
-                    width: parent.width
-                    height: dockPositionButtonGroup.height
-
-                    DankButtonGroup {
-                        id: dockPositionButtonGroup
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        model: [I18n.tr("Top"), I18n.tr("Bottom"), I18n.tr("Left"), I18n.tr("Right")]
-                        currentIndex: {
-                            switch (SettingsData.dockPosition) {
-                            case SettingsData.Position.Top:
-                                return 0;
-                            case SettingsData.Position.Bottom:
-                                return 1;
-                            case SettingsData.Position.Left:
-                                return 2;
-                            case SettingsData.Position.Right:
-                                return 3;
-                            default:
-                                return 1;
-                            }
-                        }
-                        onSelectionChanged: (index, selected) => {
-                            if (!selected)
-                                return;
-                            switch (index) {
-                            case 0:
-                                SettingsData.setDockPosition(SettingsData.Position.Top);
-                                break;
-                            case 1:
-                                SettingsData.setDockPosition(SettingsData.Position.Bottom);
-                                break;
-                            case 2:
-                                SettingsData.setDockPosition(SettingsData.Position.Left);
-                                break;
-                            case 3:
-                                SettingsData.setDockPosition(SettingsData.Position.Right);
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
 
             SettingsCard {
                 width: parent.width
@@ -123,6 +83,56 @@ Item {
                     checked: SettingsData.dockOpenOnOverview
                     visible: CompositorService.isNiri
                     onToggled: checked => SettingsData.set("dockOpenOnOverview", checked)
+                }
+            }
+
+            SettingsCard {
+                width: parent.width
+                iconName: "swap_vert"
+                title: I18n.tr("Position")
+                settingKey: "dockPosition"
+
+                Item {
+                    width: parent.width
+                    height: dockPositionButtonGroup.height
+
+                    DankButtonGroup {
+                        id: dockPositionButtonGroup
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        model: [I18n.tr("Top"), I18n.tr("Bottom"), I18n.tr("Left"), I18n.tr("Right")]
+                        currentIndex: {
+                            switch (SettingsData.dockPosition) {
+                            case SettingsData.Position.Top:
+                                return 0;
+                            case SettingsData.Position.Bottom:
+                                return 1;
+                            case SettingsData.Position.Left:
+                                return 2;
+                            case SettingsData.Position.Right:
+                                return 3;
+                            default:
+                                return 1;
+                            }
+                        }
+                        onSelectionChanged: (index, selected) => {
+                            if (!selected)
+                                return;
+                            switch (index) {
+                            case 0:
+                                SettingsData.setDockPosition(SettingsData.Position.Top);
+                                break;
+                            case 1:
+                                SettingsData.setDockPosition(SettingsData.Position.Bottom);
+                                break;
+                            case 2:
+                                SettingsData.setDockPosition(SettingsData.Position.Left);
+                                break;
+                            case 3:
+                                SettingsData.setDockPosition(SettingsData.Position.Right);
+                                break;
+                            }
+                        }
+                    }
                 }
             }
 
@@ -254,6 +264,8 @@ Item {
                                         modes.push("Sway");
                                     } else if (CompositorService.isScroll) {
                                         modes.push("Scroll");
+                                    } else if (CompositorService.isMiracle) {
+                                        modes.push("Miracle");
                                     } else {
                                         modes.push(I18n.tr("Compositor"));
                                     }
@@ -295,6 +307,40 @@ Item {
                                     }
                                 }
                             }
+                        }
+                    }
+
+                    Row {
+                        width: parent.width
+                        visible: SettingsData.dockLauncherLogoMode === "custom"
+                        spacing: Theme.spacingM
+
+                        StyledRect {
+                            width: parent.width - selectButton.width - Theme.spacingM
+                            height: 36
+                            radius: Theme.cornerRadius
+                            color: Qt.rgba(Theme.surfaceContainer.r, Theme.surfaceContainer.g, Theme.surfaceContainer.b, 0.9)
+                            border.color: Theme.outlineStrong
+                            border.width: 1
+
+                            StyledText {
+                                anchors.left: parent.left
+                                anchors.leftMargin: Theme.spacingM
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: SettingsData.dockLauncherLogoCustomPath || I18n.tr("Select an image file...")
+                                font.pixelSize: Theme.fontSizeMedium
+                                color: SettingsData.dockLauncherLogoCustomPath ? Theme.surfaceText : Theme.outlineButton
+                                width: parent.width - Theme.spacingM * 2
+                                elide: Text.ElideMiddle
+                            }
+                        }
+
+                        DankActionButton {
+                            id: selectButton
+                            iconName: "folder_open"
+                            width: 36
+                            height: 36
+                            onClicked: dockLogoFileBrowser.open()
                         }
                     }
 
@@ -463,6 +509,7 @@ Item {
                     value: SettingsData.dockIconSize
                     minimum: 24
                     maximum: 96
+                    unit: "px"
                     defaultValue: 48
                     onSliderValueChanged: newValue => SettingsData.set("dockIconSize", newValue)
                 }
@@ -473,6 +520,8 @@ Item {
                 iconName: "space_bar"
                 title: I18n.tr("Spacing")
                 settingKey: "dockSpacing"
+                collapsible: true
+                expanded: false
 
                 SettingsSliderRow {
                     text: I18n.tr("Padding")
@@ -524,6 +573,8 @@ Item {
                 iconName: "border_style"
                 title: I18n.tr("Border")
                 settingKey: "dockBorder"
+                collapsible: true
+                expanded: false
 
                 SettingsToggleRow {
                     text: I18n.tr("Border")

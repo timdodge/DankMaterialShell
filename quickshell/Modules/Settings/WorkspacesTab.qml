@@ -131,7 +131,7 @@ Item {
                     text: I18n.tr("Follow Monitor Focus")
                     description: I18n.tr("Show workspaces of the currently focused monitor")
                     checked: SettingsData.workspaceFollowFocus
-                    visible: CompositorService.isNiri || CompositorService.isHyprland || CompositorService.isDwl || CompositorService.isSway || CompositorService.isScroll
+                    visible: CompositorService.isNiri || CompositorService.isHyprland || CompositorService.isDwl || CompositorService.isSway || CompositorService.isScroll || CompositorService.isMiracle
                     onToggled: checked => SettingsData.set("workspaceFollowFocus", checked)
                 }
 
@@ -153,6 +153,16 @@ Item {
                     checked: SettingsData.reverseScrolling
                     visible: CompositorService.isNiri || CompositorService.isHyprland
                     onToggled: checked => SettingsData.set("reverseScrolling", checked)
+                }
+
+                SettingsToggleRow {
+                    settingKey: "workspaceDragReorder"
+                    tags: ["workspace", "drag", "reorder", "sort", "move"]
+                    text: I18n.tr("Drag to Reorder")
+                    description: I18n.tr("Drag workspace indicators to reorder them")
+                    checked: SettingsData.workspaceDragReorder
+                    visible: CompositorService.isNiri
+                    onToggled: checked => SettingsData.set("workspaceDragReorder", checked)
                 }
 
                 SettingsToggleRow {
@@ -286,12 +296,12 @@ Item {
                     height: 1
                     color: Theme.outline
                     opacity: 0.15
-                    visible: CompositorService.isNiri || CompositorService.isHyprland || CompositorService.isDwl || CompositorService.isSway || CompositorService.isScroll
+                    visible: CompositorService.isNiri || CompositorService.isHyprland || CompositorService.isDwl || CompositorService.isSway || CompositorService.isScroll || CompositorService.isMiracle
                 }
 
                 SettingsButtonGroupRow {
                     text: I18n.tr("Urgent Color")
-                    visible: CompositorService.isNiri || CompositorService.isHyprland || CompositorService.isDwl || CompositorService.isSway || CompositorService.isScroll
+                    visible: CompositorService.isNiri || CompositorService.isHyprland || CompositorService.isDwl || CompositorService.isSway || CompositorService.isScroll || CompositorService.isMiracle
                     model: ["err", "pri", "sec", "s", "sc"]
                     buttonHeight: 22
                     minButtonWidth: 36

@@ -14,6 +14,7 @@ Item {
     property bool isNiri: CompositorService.isNiri
     property bool isSway: CompositorService.isSway
     property bool isScroll: CompositorService.isScroll
+    property bool isMiracle: CompositorService.isMiracle
     property bool isDwl: CompositorService.isDwl
     property bool isLabwc: CompositorService.isLabwc
 
@@ -24,6 +25,8 @@ Item {
             return "sway";
         if (isScroll)
             return "scroll";
+        if (isMiracle)
+            return "miracle";
         if (isDwl)
             return "mangowc";
         if (isLabwc)
@@ -38,6 +41,8 @@ Item {
             return "/assets/sway.svg";
         if (isScroll)
             return "/assets/sway.svg";
+        if (isMiracle)
+            return "/assets/miraclewm.svg";
         if (isDwl)
             return "/assets/mango.png";
         if (isLabwc)
@@ -52,11 +57,13 @@ Item {
             return "https://swaywm.org";
         if (isScroll)
             return "https://github.com/dawsers/scroll";
+        if (isMiracle)
+            return "https://github.com/miracle-wm-org/miracle-wm";
         if (isDwl)
             return "https://github.com/DreamMaoMao/mangowc";
         if (isLabwc)
             return "https://labwc.github.io/";
-        return "https://github.com/YaLTeR/niri";
+        return "https://github.com/niri-wm/niri";
     }
 
     property string compositorTooltip: {
@@ -66,6 +73,8 @@ Item {
             return "Sway Website";
         if (isScroll)
             return "Scroll Github";
+        if (isMiracle)
+            return "Miracle WM GitHub";
         if (isDwl)
             return "mangowc GitHub";
         if (isLabwc)
@@ -98,9 +107,9 @@ Item {
     property string ircUrl: "https://web.libera.chat/gamja/?channels=#labwc"
     property string ircTooltip: "LabWC IRC Channel"
 
-    property bool showMatrix: isNiri && !isHyprland && !isSway && !isScroll && !isDwl && !isLabwc
+    property bool showMatrix: isNiri && !isHyprland && !isSway && !isScroll && !isMiracle && !isDwl && !isLabwc
     property bool showCompositorDiscord: isHyprland || isDwl
-    property bool showReddit: isNiri && !isHyprland && !isSway && !isScroll && !isDwl && !isLabwc
+    property bool showReddit: isNiri && !isHyprland && !isSway && !isScroll && !isMiracle && !isDwl && !isLabwc
     property bool showIrc: isLabwc
 
     DankFlickable {
@@ -122,7 +131,7 @@ Item {
                 width: parent.width
                 height: asciiSection.implicitHeight + Theme.spacingL * 2
                 radius: Theme.cornerRadius
-                color: Theme.withAlpha(Theme.surfaceContainerHigh, Theme.popupTransparency)
+                color: Theme.surfaceContainerHigh
                 border.color: Qt.rgba(Theme.outline.r, Theme.outline.g, Theme.outline.b, 0.2)
                 border.width: 0
 
@@ -541,7 +550,7 @@ Item {
                 width: parent.width
                 height: projectSection.implicitHeight + Theme.spacingL * 2
                 radius: Theme.cornerRadius
-                color: Theme.withAlpha(Theme.surfaceContainerHigh, Theme.popupTransparency)
+                color: Theme.surfaceContainerHigh
                 border.color: Qt.rgba(Theme.outline.r, Theme.outline.g, Theme.outline.b, 0.2)
                 border.width: 0
 
@@ -599,7 +608,7 @@ Item {
                 width: parent.width
                 height: backendSection.implicitHeight + Theme.spacingL * 2
                 radius: Theme.cornerRadius
-                color: Theme.withAlpha(Theme.surfaceContainerHigh, Theme.popupTransparency)
+                color: Theme.surfaceContainerHigh
                 border.color: Qt.rgba(Theme.outline.r, Theme.outline.g, Theme.outline.b, 0.2)
                 border.width: 0
 
@@ -760,7 +769,7 @@ Item {
                 width: parent.width
                 height: toolsSection.implicitHeight + Theme.spacingL * 2
                 radius: Theme.cornerRadius
-                color: Theme.withAlpha(Theme.surfaceContainerHigh, Theme.popupTransparency)
+                color: Theme.surfaceContainerHigh
                 border.color: Qt.rgba(Theme.outline.r, Theme.outline.g, Theme.outline.b, 0.2)
                 border.width: 0
 

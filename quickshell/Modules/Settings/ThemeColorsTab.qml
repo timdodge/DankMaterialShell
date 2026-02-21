@@ -16,7 +16,7 @@ Item {
     property var cachedCursorThemes: SettingsData.availableCursorThemes
     property var cachedMatugenSchemes: Theme.availableMatugenSchemes.map(option => option.label)
     property var installedRegistryThemes: []
-    property var templateDetection: ({})
+    property var templateDetection: []
 
     property var cursorIncludeStatus: ({
             "exists": false,
@@ -106,9 +106,10 @@ Item {
     }
 
     function isTemplateDetected(templateId) {
-        if (!templateDetection || Object.keys(templateDetection).length === 0)
+        if (!templateDetection || templateDetection.length === 0)
             return true;
-        return templateDetection[templateId] !== false;
+        var item = templateDetection.find(i => i.id === templateId);
+        return !item || item.detected !== false;
     }
 
     function getTemplateDescription(templateId, baseDescription) {
@@ -145,28 +146,15 @@ Item {
             DMSService.listInstalledThemes();
         if (PopoutService.pendingThemeInstall)
             Qt.callLater(() => showThemeBrowser());
-        templateCheckProcess.running = true;
+        Proc.runCommand("template-check", ["dms", "matugen", "check"], (output, exitCode) => {
+            if (exitCode !== 0)
+                return;
+            try {
+                themeColorsTab.templateDetection = JSON.parse(output.trim());
+            } catch (e) {}
+        });
         if (CompositorService.isNiri || CompositorService.isHyprland || CompositorService.isDwl)
             checkCursorIncludeStatus();
-    }
-
-    Process {
-        id: templateCheckProcess
-        command: ["dms", "matugen", "check"]
-        running: false
-
-        stdout: StdioCollector {
-            onStreamFinished: {
-                try {
-                    const results = JSON.parse(text);
-                    const detection = {};
-                    for (const item of results) {
-                        detection[item.id] = item.detected;
-                    }
-                    themeColorsTab.templateDetection = detection;
-                } catch (e) {}
-            }
-        }
     }
 
     Connections {
@@ -777,13 +765,26 @@ Item {
                                     return {};
                                 return activeThemeVariants.defaults[colorMode] || activeThemeVariants.defaults.dark || {};
                             }
-                            property var storedMulti: activeThemeId ? SettingsData.getRegistryThemeMultiVariant(activeThemeId, multiDefaults) : multiDefaults
-                            property string selectedFlavor: storedMulti.flavor || multiDefaults.flavor || ""
+                            property var storedMulti: activeThemeId ? SettingsData.getRegistryThemeMultiVariant(activeThemeId, multiDefaults, colorMode) : multiDefaults
+                            property string selectedFlavor: {
+                                var sf = storedMulti.flavor || multiDefaults.flavor || "";
+                                for (var i = 0; i < flavorOptions.length; i++) {
+                                    if (flavorOptions[i].id === sf)
+                                        return sf;
+                                }
+                                if (flavorOptions.length > 0)
+                                    return flavorOptions[0].id;
+                                return sf;
+                            }
                             property string selectedAccent: storedMulti.accent || multiDefaults.accent || ""
                             property var flavorOptions: {
                                 if (!isMultiVariant || !activeThemeVariants?.flavors)
                                     return [];
-                                return activeThemeVariants.flavors.filter(f => f.mode === colorMode || f.mode === "both");
+                                return activeThemeVariants.flavors.filter(f => {
+                                    if (f.mode)
+                                        return f.mode === colorMode || f.mode === "both";
+                                    return !!f[colorMode];
+                                });
                             }
                             property var flavorNames: flavorOptions.map(f => f.name)
                             property int flavorIndex: {
@@ -818,9 +819,12 @@ Item {
                                 DankButtonGroup {
                                     id: flavorButtonGroup
                                     anchors.horizontalCenter: parent.horizontalCenter
-                                    buttonPadding: parent.width < 400 ? Theme.spacingS : Theme.spacingL
-                                    minButtonWidth: parent.width < 400 ? 44 : 64
-                                    textSize: parent.width < 400 ? Theme.fontSizeSmall : Theme.fontSizeMedium
+                                    property int _count: variantSelector.flavorNames.length
+                                    property real _maxPerItem: _count > 1 ? (parent.width - (_count - 1) * spacing) / _count : parent.width
+                                    buttonPadding: _maxPerItem < 55 ? Theme.spacingXS : (_maxPerItem < 75 ? Theme.spacingS : Theme.spacingL)
+                                    minButtonWidth: Math.min(_maxPerItem < 55 ? 28 : (_maxPerItem < 75 ? 44 : 64), Math.max(28, Math.floor(_maxPerItem)))
+                                    textSize: _maxPerItem < 55 ? Theme.fontSizeSmall - 2 : (_maxPerItem < 75 ? Theme.fontSizeSmall : Theme.fontSizeMedium)
+                                    checkEnabled: _maxPerItem >= 55
                                     property int pendingIndex: -1
                                     model: variantSelector.flavorNames
                                     currentIndex: pendingIndex >= 0 ? pendingIndex : variantSelector.flavorIndex
@@ -839,7 +843,7 @@ Item {
                                         if (!flavorId || flavorId === variantSelector.selectedFlavor)
                                             return;
                                         Theme.screenTransition();
-                                        SettingsData.setRegistryThemeMultiVariant(variantSelector.activeThemeId, flavorId, variantSelector.selectedAccent);
+                                        SettingsData.setRegistryThemeMultiVariant(variantSelector.activeThemeId, flavorId, variantSelector.selectedAccent, variantSelector.colorMode);
                                     }
                                 }
                             }
@@ -902,7 +906,7 @@ Item {
                                                     if (parent.isSelected)
                                                         return;
                                                     Theme.screenTransition();
-                                                    SettingsData.setRegistryThemeMultiVariant(variantSelector.activeThemeId, variantSelector.selectedFlavor, parent.accentId);
+                                                    SettingsData.setRegistryThemeMultiVariant(variantSelector.activeThemeId, variantSelector.selectedFlavor, parent.accentId, variantSelector.colorMode);
                                                 }
                                             }
 
@@ -926,9 +930,12 @@ Item {
                                 DankButtonGroup {
                                     id: variantButtonGroup
                                     anchors.horizontalCenter: parent.horizontalCenter
-                                    buttonPadding: parent.width < 400 ? Theme.spacingS : Theme.spacingL
-                                    minButtonWidth: parent.width < 400 ? 44 : 64
-                                    textSize: parent.width < 400 ? Theme.fontSizeSmall : Theme.fontSizeMedium
+                                    property int _count: variantSelector.variantNames.length
+                                    property real _maxPerItem: _count > 1 ? (parent.width - (_count - 1) * spacing) / _count : parent.width
+                                    buttonPadding: _maxPerItem < 55 ? Theme.spacingXS : (_maxPerItem < 75 ? Theme.spacingS : Theme.spacingL)
+                                    minButtonWidth: Math.min(_maxPerItem < 55 ? 28 : (_maxPerItem < 75 ? 44 : 64), Math.max(28, Math.floor(_maxPerItem)))
+                                    textSize: _maxPerItem < 55 ? Theme.fontSizeSmall - 2 : (_maxPerItem < 75 ? Theme.fontSizeSmall : Theme.fontSizeMedium)
+                                    checkEnabled: _maxPerItem >= 55
                                     property int pendingIndex: -1
                                     model: variantSelector.variantNames
                                     currentIndex: pendingIndex >= 0 ? pendingIndex : variantSelector.selectedIndex
@@ -1026,11 +1033,11 @@ Item {
                                 anchors.horizontalCenter: parent.horizontalCenter
                                 model: [
                                     {
-                                        "text": "Time",
+                                        "text": I18n.tr("Time", "theme auto mode tab"),
                                         "icon": "access_time"
                                     },
                                     {
-                                        "text": "Location",
+                                        "text": I18n.tr("Location", "theme auto mode tab"),
                                         "icon": "place"
                                     }
                                 ]
@@ -1512,6 +1519,38 @@ Item {
                             SettingsData.set("controlCenterTileColorMode", "surfaceVariant");
                         } else {
                             SettingsData.set("controlCenterTileColorMode", "primary");
+                        }
+                    }
+                }
+
+                SettingsDropdownRow {
+                    tab: "theme"
+                    tags: ["button", "color", "primary", "accent"]
+                    settingKey: "buttonColorMode"
+                    text: I18n.tr("Button Color")
+                    description: I18n.tr("Color for primary action buttons")
+                    options: [I18n.tr("Primary", "button color option"), I18n.tr("Primary Container", "button color option"), I18n.tr("Secondary", "button color option"), I18n.tr("Surface Variant", "button color option")]
+                    currentValue: {
+                        switch (SettingsData.buttonColorMode) {
+                        case "primaryContainer":
+                            return I18n.tr("Primary Container", "button color option");
+                        case "secondary":
+                            return I18n.tr("Secondary", "button color option");
+                        case "surfaceVariant":
+                            return I18n.tr("Surface Variant", "button color option");
+                        default:
+                            return I18n.tr("Primary", "button color option");
+                        }
+                    }
+                    onValueChanged: value => {
+                        if (value === I18n.tr("Primary Container", "button color option")) {
+                            SettingsData.set("buttonColorMode", "primaryContainer");
+                        } else if (value === I18n.tr("Secondary", "button color option")) {
+                            SettingsData.set("buttonColorMode", "secondary");
+                        } else if (value === I18n.tr("Surface Variant", "button color option")) {
+                            SettingsData.set("buttonColorMode", "surfaceVariant");
+                        } else {
+                            SettingsData.set("buttonColorMode", "primary");
                         }
                     }
                 }
@@ -2289,7 +2328,7 @@ Item {
                     tags: ["matugen", "neovim", "terminal", "template"]
                     settingKey: "matugenTemplateNeovim"
                     text: "neovim"
-                    description: getTemplateDescription("nvim", "Requires lazy plugin manager")
+                    description: getTemplateDescription("nvim", I18n.tr("Requires lazy plugin manager", "neovim template description"))
                     descriptionColor: getTemplateDescriptionColor("nvim")
                     visible: SettingsData.runDmsMatugenTemplates
                     checked: SettingsData.matugenTemplateNeovim
@@ -2418,7 +2457,7 @@ Item {
                     onValueChanged: value => {
                         SettingsData.setIconTheme(value);
                         if (Quickshell.env("QT_QPA_PLATFORMTHEME") != "gtk3" && Quickshell.env("QT_QPA_PLATFORMTHEME") != "qt6ct" && Quickshell.env("QT_QPA_PLATFORMTHEME_QT6") != "qt6ct") {
-                            ToastService.showError("Missing Environment Variables", "You need to set either:\nQT_QPA_PLATFORMTHEME=gtk3 OR\nQT_QPA_PLATFORMTHEME=qt6ct\nas environment variables, and then restart the shell.\n\nqt6ct requires qt6ct-kde to be installed.");
+                            ToastService.showError(I18n.tr("Missing Environment Variables", "qt theme env error title"), I18n.tr("You need to set either:\nQT_QPA_PLATFORMTHEME=gtk3 OR\nQT_QPA_PLATFORMTHEME=qt6ct\nas environment variables, and then restart the shell.\n\nqt6ct requires qt6ct-kde to be installed.", "qt theme env error body"));
                         }
                     }
                 }

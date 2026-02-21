@@ -232,7 +232,14 @@ func (m *Manager) setupDataDeviceSync() {
 			return
 		}
 
+		prevOffer := m.currentOffer
 		m.currentOffer = offer
+
+		if prevOffer != nil && prevOffer != offer {
+			m.offerMutex.Lock()
+			delete(m.offerMimeTypes, prevOffer)
+			m.offerMutex.Unlock()
+		}
 
 		m.offerMutex.RLock()
 		mimes := m.offerMimeTypes[offer]
@@ -386,6 +393,10 @@ func (m *Manager) deduplicateInTx(b *bolt.Bucket, hash uint64) error {
 	c := b.Cursor()
 	for k, v := c.Last(); k != nil; k, v = c.Prev() {
 		if extractHash(v) != hash {
+			continue
+		}
+		entry, err := decodeEntry(v)
+		if err == nil && entry.Pinned {
 			continue
 		}
 		if err := b.Delete(k); err != nil {
@@ -583,20 +594,26 @@ func (m *Manager) uriListPreview(data []byte) (string, bool) {
 		uris = strings.Split(text, "\n")
 	}
 
+	if len(uris) > 1 {
+		return fmt.Sprintf("[[ %d files ]]", len(uris)), false
+	}
+
 	if len(uris) == 1 && strings.HasPrefix(uris[0], "file://") {
 		filePath := strings.TrimPrefix(uris[0], "file://")
-		if info, err := os.Stat(filePath); err == nil && !info.IsDir() {
+		info, err := os.Stat(filePath)
+		if err != nil || info.IsDir() {
+			return m.textPreview(data), false
+		}
+
+		cfg := m.getConfig()
+		if info.Size() <= cfg.MaxEntrySize {
 			if imgData, err := os.ReadFile(filePath); err == nil {
 				if config, imgFmt, err := image.DecodeConfig(bytes.NewReader(imgData)); err == nil {
 					return fmt.Sprintf("[[ file %s %s %dx%d ]]", filepath.Base(filePath), imgFmt, config.Width, config.Height), true
 				}
 			}
-			return fmt.Sprintf("[[ file %s ]]", filepath.Base(filePath)), false
 		}
-	}
-
-	if len(uris) > 1 {
-		return fmt.Sprintf("[[ %d files ]]", len(uris)), false
+		return fmt.Sprintf("[[ file %s ]]", filepath.Base(filePath)), false
 	}
 
 	return m.textPreview(data), false
@@ -616,6 +633,11 @@ func (m *Manager) tryReadImageFromURI(data []byte) ([]byte, string, bool) {
 	filePath := strings.TrimPrefix(uris[0], "file://")
 	info, err := os.Stat(filePath)
 	if err != nil || info.IsDir() {
+		return nil, "", false
+	}
+
+	cfg := m.getConfig()
+	if info.Size() > cfg.MaxEntrySize {
 		return nil, "", false
 	}
 
@@ -840,6 +862,62 @@ func (m *Manager) TouchEntry(id uint64) error {
 	m.notifySubscribers()
 
 	return nil
+}
+
+func (m *Manager) CreateHistoryEntryFromPinned(pinnedEntry *Entry) error {
+	if m.db == nil {
+		return fmt.Errorf("database not available")
+	}
+
+	// Create a new unpinned entry with the same data
+	newEntry := Entry{
+		Data:      pinnedEntry.Data,
+		MimeType:  pinnedEntry.MimeType,
+		Size:      pinnedEntry.Size,
+		Timestamp: time.Now(),
+		IsImage:   pinnedEntry.IsImage,
+		Preview:   pinnedEntry.Preview,
+		Pinned:    false,
+	}
+
+	if err := m.storeEntryWithoutDedup(newEntry); err != nil {
+		return err
+	}
+
+	m.updateState()
+	m.notifySubscribers()
+
+	return nil
+}
+
+func (m *Manager) storeEntryWithoutDedup(entry Entry) error {
+	if m.db == nil {
+		return fmt.Errorf("database not available")
+	}
+
+	entry.Hash = computeHash(entry.Data)
+
+	return m.db.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte("clipboard"))
+
+		id, err := b.NextSequence()
+		if err != nil {
+			return err
+		}
+
+		entry.ID = id
+
+		encoded, err := encodeEntry(entry)
+		if err != nil {
+			return err
+		}
+
+		if err := b.Put(itob(id), encoded); err != nil {
+			return err
+		}
+
+		return m.trimLengthInTx(b)
+	})
 }
 
 func (m *Manager) ClearHistory() {
@@ -1419,6 +1497,37 @@ func (m *Manager) PinEntry(id uint64) error {
 		return fmt.Errorf("database not available")
 	}
 
+	entryToPin, err := m.GetEntry(id)
+	if err != nil {
+		return err
+	}
+
+	var hashExists bool
+	if err := m.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte("clipboard"))
+		if b == nil {
+			return nil
+		}
+		c := b.Cursor()
+		for k, v := c.First(); k != nil; k, v = c.Next() {
+			entry, err := decodeEntry(v)
+			if err != nil || !entry.Pinned {
+				continue
+			}
+			if entry.Hash == entryToPin.Hash {
+				hashExists = true
+				return nil
+			}
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	if hashExists {
+		return nil
+	}
+
 	// Check pinned count
 	cfg := m.getConfig()
 	pinnedCount := 0
@@ -1443,7 +1552,7 @@ func (m *Manager) PinEntry(id uint64) error {
 		return fmt.Errorf("maximum pinned entries reached (%d)", cfg.MaxPinned)
 	}
 
-	err := m.db.Update(func(tx *bolt.Tx) error {
+	err = m.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte("clipboard"))
 		v := b.Get(itob(id))
 		if v == nil {

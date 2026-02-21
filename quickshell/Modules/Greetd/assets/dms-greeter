@@ -14,7 +14,7 @@ dms-greeter - DankMaterialShell greeter launcher
 Usage: dms-greeter --command COMPOSITOR [OPTIONS]
 
 Required:
-    --command COMPOSITOR    Compositor to use (niri, hyprland, sway, scroll, mangowc, or labwc)
+    --command COMPOSITOR    Compositor to use (niri, hyprland, sway, scroll, miracle, mango, or labwc)
 
 Options:
     -C, --config PATH       Custom compositor config file
@@ -30,7 +30,7 @@ Examples:
     dms-greeter --command sway -p /home/user/.config/quickshell/custom-dms
     dms-greeter --command scroll -p /home/user/.config/quickshell/custom-dms
     dms-greeter --command niri --cache-dir /tmp/dmsgreeter
-    dms-greeter --command mangowc
+    dms-greeter --command mango
     dms-greeter --command labwc
 EOF
 }
@@ -125,6 +125,7 @@ case "$COMPOSITOR" in
     niri)
         if [[ -z "$COMPOSITOR_CONFIG" ]]; then
             TEMP_CONFIG=$(mktemp)
+			# base/default config
             cat > "$TEMP_CONFIG" << NIRI_EOF
 hotkey-overlay {
     skip-at-startup
@@ -133,8 +134,6 @@ hotkey-overlay {
 environment {
     DMS_RUN_GREETER "1"
 }
-
-spawn-at-startup "sh" "-c" "$QS_CMD; niri msg action quit --skip-confirmation"
 
 debug {
   keep-max-bpc-unchanged
@@ -154,12 +153,27 @@ NIRI_EOF
         else
             TEMP_CONFIG=$(mktemp)
             cat "$COMPOSITOR_CONFIG" > "$TEMP_CONFIG"
+        fi
+		# Append includes if override_files exist
+		OVERRIDE_FILES=(
+			/usr/share/greetd/niri_overrides.kdl # for building into a system image
+			/etc/greetd/niri_overrides.kdl # for local overrides
+			)
+		for override_file in "${OVERRIDE_FILES[@]}"; do
+			if [[ -e "$override_file" ]]; then
+		# TODO: maybe move to optional=true when Niri Next drops, so we can avoid these checks ;-)
+				cat >> "$TEMP_CONFIG" << NIRI_EOF
+
+include "$override_file"
+NIRI_EOF
+			fi
+		done
+		# Append spawn command
             cat >> "$TEMP_CONFIG" << NIRI_EOF
 
 spawn-at-startup "sh" "-c" "$QS_CMD; niri msg action quit --skip-confirmation"
 NIRI_EOF
             COMPOSITOR_CONFIG="$TEMP_CONFIG"
-        fi
         exec niri -c "$COMPOSITOR_CONFIG"
         ;;
 
@@ -230,6 +244,24 @@ SCROLL_EOF
         exec scroll -c "$COMPOSITOR_CONFIG"
         ;;
 
+    miracle|miracle-wm)
+        if [[ -z "$COMPOSITOR_CONFIG" ]]; then
+            TEMP_CONFIG=$(mktemp)
+            cat > "$TEMP_CONFIG" << MIRACLE_EOF
+exec "$QS_CMD; miraclemsg exit"
+MIRACLE_EOF
+            COMPOSITOR_CONFIG="$TEMP_CONFIG"
+        else
+            TEMP_CONFIG=$(mktemp)
+            cat "$COMPOSITOR_CONFIG" > "$TEMP_CONFIG"
+            cat >> "$TEMP_CONFIG" << MIRACLE_EOF
+
+exec "$QS_CMD; miraclemsg exit"
+MIRACLE_EOF
+            COMPOSITOR_CONFIG="$TEMP_CONFIG"
+        fi
+        exec miracle-wm -c "$COMPOSITOR_CONFIG"
+        ;;
 
     labwc)
         if [[ -n "$COMPOSITOR_CONFIG" ]]; then
@@ -239,7 +271,7 @@ SCROLL_EOF
         fi
         ;;
 
-    mangowc)
+    mango|mangowc)
         if [[ -n "$COMPOSITOR_CONFIG" ]]; then
             exec mango -c "$COMPOSITOR_CONFIG" -s "$QS_CMD && mmsg -d quit"
         else
@@ -249,7 +281,7 @@ SCROLL_EOF
 
     *)
         echo "Error: Unsupported compositor: $COMPOSITOR" >&2
-        echo "Supported compositors: niri, hyprland, sway, scroll, mangowc, labwc" >&2
+        echo "Supported compositors: niri, hyprland, sway, scroll, miracle, mango, labwc" >&2
         exit 1
         ;;
 esac

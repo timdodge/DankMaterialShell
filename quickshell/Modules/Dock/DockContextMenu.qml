@@ -165,7 +165,7 @@ PanelWindow {
         }
 
         width: Math.min(400, Math.max(180, menuColumn.implicitWidth + Theme.spacingS * 2))
-        height: Math.max(60, menuColumn.implicitHeight + Theme.spacingS * 2)
+        height: menuColumn.implicitHeight + Theme.spacingS * 2
         color: Theme.withAlpha(Theme.surfaceContainer, Theme.popupTransparency)
         radius: Theme.cornerRadius
         border.color: Qt.rgba(Theme.outline.r, Theme.outline.g, Theme.outline.b, 0.08)
@@ -268,12 +268,19 @@ PanelWindow {
                         }
                     }
 
+                    DankRipple {
+                        id: windowRipple
+                        rippleColor: Theme.surfaceText
+                        cornerRadius: Theme.cornerRadius
+                    }
+
                     MouseArea {
                         id: windowArea
                         anchors.fill: parent
                         anchors.rightMargin: 24
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
+                        onPressed: mouse => windowRipple.trigger(mouse.x, mouse.y)
                         onClicked: {
                             if (modelData && modelData.activate) {
                                 modelData.activate();
@@ -340,11 +347,18 @@ PanelWindow {
                         }
                     }
 
+                    DankRipple {
+                        id: actionRipple
+                        rippleColor: Theme.surfaceText
+                        cornerRadius: Theme.cornerRadius
+                    }
+
                     MouseArea {
                         id: actionArea
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
+                        onPressed: mouse => actionRipple.trigger(mouse.x, mouse.y)
                         onClicked: {
                             if (modelData) {
                                 SessionService.launchDesktopAction(root.desktopEntry, modelData);
@@ -374,18 +388,37 @@ PanelWindow {
                 radius: Theme.cornerRadius
                 color: pinArea.containsMouse ? Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.12) : "transparent"
 
-                StyledText {
+                Row {
                     anchors.left: parent.left
                     anchors.leftMargin: Theme.spacingS
                     anchors.right: parent.right
                     anchors.rightMargin: Theme.spacingS
                     anchors.verticalCenter: parent.verticalCenter
-                    text: root.appData && root.appData.isPinned ? I18n.tr("Unpin from Dock") : I18n.tr("Pin to Dock")
-                    font.pixelSize: Theme.fontSizeSmall
-                    color: Theme.surfaceText
-                    font.weight: Font.Normal
-                    elide: Text.ElideRight
-                    wrapMode: Text.NoWrap
+                    spacing: Theme.spacingXS
+
+                    DankIcon {
+                        anchors.verticalCenter: parent.verticalCenter
+                        name: root.appData && root.appData.isPinned ? "keep_off" : "push_pin"
+                        size: 14
+                        color: Theme.surfaceText
+                        opacity: 0.7
+                    }
+
+                    StyledText {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: root.appData && root.appData.isPinned ? I18n.tr("Unpin from Dock") : I18n.tr("Pin to Dock")
+                        font.pixelSize: Theme.fontSizeSmall
+                        color: Theme.surfaceText
+                        font.weight: Font.Normal
+                        elide: Text.ElideRight
+                        wrapMode: Text.NoWrap
+                    }
+                }
+
+                DankRipple {
+                    id: pinRipple
+                    rippleColor: Theme.surfaceText
+                    cornerRadius: Theme.cornerRadius
                 }
 
                 MouseArea {
@@ -393,6 +426,7 @@ PanelWindow {
                     anchors.fill: parent
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
+                    onPressed: mouse => pinRipple.trigger(mouse.x, mouse.y)
                     onClicked: {
                         if (!root.appData)
                             return;
@@ -427,18 +461,37 @@ PanelWindow {
                 radius: Theme.cornerRadius
                 color: nvidiaArea.containsMouse ? Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.12) : "transparent"
 
-                StyledText {
+                Row {
                     anchors.left: parent.left
                     anchors.leftMargin: Theme.spacingS
                     anchors.right: parent.right
                     anchors.rightMargin: Theme.spacingS
                     anchors.verticalCenter: parent.verticalCenter
-                    text: I18n.tr("Launch on dGPU")
-                    font.pixelSize: Theme.fontSizeSmall
-                    color: Theme.surfaceText
-                    font.weight: Font.Normal
-                    elide: Text.ElideRight
-                    wrapMode: Text.NoWrap
+                    spacing: Theme.spacingXS
+
+                    DankIcon {
+                        anchors.verticalCenter: parent.verticalCenter
+                        name: "memory"
+                        size: 14
+                        color: Theme.surfaceText
+                        opacity: 0.7
+                    }
+
+                    StyledText {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: I18n.tr("Launch on dGPU")
+                        font.pixelSize: Theme.fontSizeSmall
+                        color: Theme.surfaceText
+                        font.weight: Font.Normal
+                        elide: Text.ElideRight
+                        wrapMode: Text.NoWrap
+                    }
+                }
+
+                DankRipple {
+                    id: nvidiaRipple
+                    rippleColor: Theme.surfaceText
+                    cornerRadius: Theme.cornerRadius
                 }
 
                 MouseArea {
@@ -446,6 +499,7 @@ PanelWindow {
                     anchors.fill: parent
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
+                    onPressed: mouse => nvidiaRipple.trigger(mouse.x, mouse.y)
                     onClicked: {
                         if (root.desktopEntry) {
                             SessionService.launchDesktopEntry(root.desktopEntry, true);
@@ -462,23 +516,37 @@ PanelWindow {
                 radius: Theme.cornerRadius
                 color: closeArea.containsMouse ? Qt.rgba(Theme.error.r, Theme.error.g, Theme.error.b, 0.12) : "transparent"
 
-                StyledText {
+                Row {
                     anchors.left: parent.left
                     anchors.leftMargin: Theme.spacingS
                     anchors.right: parent.right
                     anchors.rightMargin: Theme.spacingS
                     anchors.verticalCenter: parent.verticalCenter
-                    text: {
-                        if (root.appData && root.appData.type === "grouped") {
-                            return "Close All Windows";
-                        }
-                        return "Close Window";
+                    spacing: Theme.spacingXS
+
+                    DankIcon {
+                        anchors.verticalCenter: parent.verticalCenter
+                        name: "close"
+                        size: 14
+                        color: closeArea.containsMouse ? Theme.error : Theme.surfaceText
+                        opacity: 0.7
                     }
-                    font.pixelSize: Theme.fontSizeSmall
-                    color: closeArea.containsMouse ? Theme.error : Theme.surfaceText
-                    font.weight: Font.Normal
-                    elide: Text.ElideRight
-                    wrapMode: Text.NoWrap
+
+                    StyledText {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: root.appData && root.appData.type === "grouped" ? I18n.tr("Close All Windows") : I18n.tr("Close Window")
+                        font.pixelSize: Theme.fontSizeSmall
+                        color: closeArea.containsMouse ? Theme.error : Theme.surfaceText
+                        font.weight: Font.Normal
+                        elide: Text.ElideRight
+                        wrapMode: Text.NoWrap
+                    }
+                }
+
+                DankRipple {
+                    id: closeRipple
+                    rippleColor: Theme.error
+                    cornerRadius: Theme.cornerRadius
                 }
 
                 MouseArea {
@@ -486,6 +554,7 @@ PanelWindow {
                     anchors.fill: parent
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
+                    onPressed: mouse => closeRipple.trigger(mouse.x, mouse.y)
                     onClicked: {
                         if (root.appData?.type === "window") {
                             root.appData?.toplevel?.close();

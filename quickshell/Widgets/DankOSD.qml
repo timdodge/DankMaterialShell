@@ -4,7 +4,6 @@ import Quickshell
 import Quickshell.Wayland
 import qs.Common
 import qs.Services
-import qs.Widgets
 
 PanelWindow {
     id: root
@@ -29,6 +28,10 @@ PanelWindow {
     function show() {
         if (SessionData.suppressOSD)
             return;
+        if (shouldBeVisible) {
+            hideTimer.restart();
+            return;
+        }
         OSDManager.showOSD(root);
         closeTimer.stop();
         shouldBeVisible = true;
@@ -66,7 +69,43 @@ PanelWindow {
 
     screen: modelData
     visible: false
-    WlrLayershell.layer: WlrLayershell.Overlay
+
+    Connections {
+        target: Quickshell
+        function onScreensChanged() {
+            if (!root.visible && !root.shouldBeVisible)
+                return;
+            const currentScreenName = root.screen?.name;
+            if (!currentScreenName) {
+                root.hide();
+                return;
+            }
+            for (let i = 0; i < Quickshell.screens.length; i++) {
+                if (Quickshell.screens[i].name === currentScreenName)
+                    return;
+            }
+            root.shouldBeVisible = false;
+            root.visible = false;
+            hideTimer.stop();
+            closeTimer.stop();
+            osdHidden();
+        }
+    }
+
+    WlrLayershell.layer: {
+        switch (Quickshell.env("DMS_OSD_LAYER")) {
+        case "bottom":
+            console.warn("DankOSD: 'bottom' layer is not valid for OSDs. Defaulting to 'overlay' layer.");
+            return WlrLayershell.Overlay;
+        case "background":
+            console.warn("DankOSD: 'background' layer is not valid for OSDs. Defaulting to 'overlay' layer.");
+            return WlrLayershell.Overlay;
+        case "top":
+            return WlrLayershell.Top;
+        default:
+            return WlrLayershell.Overlay;
+        }
+    }
     WlrLayershell.exclusiveZone: -1
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
     color: "transparent"
@@ -105,7 +144,7 @@ PanelWindow {
     }
 
     readonly property real dockOffset: {
-        if (!SettingsData.showDock || SettingsData.dockAutoHide)
+        if (!SettingsData.showDock || SettingsData.dockAutoHide || SettingsData.dockSmartAutoHide)
             return 0;
         return dockThickness + SettingsData.dockSpacing + SettingsData.dockBottomGap + SettingsData.dockMargin;
     }
@@ -222,13 +261,15 @@ PanelWindow {
         property real shadowSpreadPx: 0
         property real shadowBaseAlpha: 0.60
         readonly property real popupSurfaceAlpha: SettingsData.popupTransparency
-        readonly property real effectiveShadowAlpha: Math.max(0, Math.min(1, shadowBaseAlpha * popupSurfaceAlpha * osdContainer.opacity))
+        readonly property real effectiveShadowAlpha: shouldBeVisible ? Math.max(0, Math.min(1, shadowBaseAlpha * popupSurfaceAlpha)) : 0
 
-        DankRectangle {
+        Rectangle {
             id: background
             anchors.fill: parent
             radius: Theme.cornerRadius
             color: Theme.withAlpha(Theme.surfaceContainer, osdContainer.popupSurfaceAlpha)
+            border.color: Theme.outlineMedium
+            border.width: 1
             z: -1
         }
 
@@ -257,9 +298,12 @@ PanelWindow {
                 }
             }
 
-            DankRectangle {
+            Rectangle {
                 anchors.fill: parent
                 radius: Theme.cornerRadius
+                color: Theme.surfaceContainer
+                border.color: Theme.outlineMedium
+                border.width: 1
             }
         }
 

@@ -48,6 +48,7 @@
           sonnet
           qtmultimedia
           qtimageformats
+          kimageformats
         ];
     in
     {
@@ -79,7 +80,7 @@
               inherit version;
               pname = "dms-shell";
               src = ./core;
-              vendorHash = "sha256-vsfCgpilOHzJbTaJjJfMK/cSvtyFYJsPDjY4m3iuoFg=";
+              vendorHash = "sha256-cVUJXgzYMRSM0od1xzDVkMTdxHu3OIQX2bQ8AJbGQ1Q=";
 
               subPackages = [ "cmd/dms" ];
 
@@ -180,7 +181,7 @@
             buildInputs =
               with pkgs;
               [
-                go_1_24
+                go_1_25
                 gopls
                 delve
                 go-tools
@@ -188,6 +189,7 @@
 
                 prek
                 uv # for prek
+                shellcheck
 
                 # Nix development tools
                 nixd

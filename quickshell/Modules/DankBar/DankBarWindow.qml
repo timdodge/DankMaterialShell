@@ -48,10 +48,11 @@ PanelWindow {
             return;
         }
 
+        let section = "center";
         if (clockButtonRef && clockButtonRef.visualContent && dankDashPopoutLoader.item.setTriggerPosition) {
             // Calculate barPosition from axis.edge
             const barPosition = axis?.edge === "left" ? 2 : (axis?.edge === "right" ? 3 : (axis?.edge === "top" ? 0 : 1));
-            const section = clockButtonRef.section || "center";
+            section = clockButtonRef.section || "center";
 
             let triggerPos, triggerWidth;
             if (section === "center") {
@@ -80,7 +81,7 @@ PanelWindow {
             dankDashPopoutLoader.item.triggerScreen = barWindow.screen;
         }
 
-        PopoutManager.requestPopout(dankDashPopoutLoader.item, 2, (barConfig?.id ?? "default") + "-2");
+        PopoutManager.requestPopout(dankDashPopoutLoader.item, 2, (barConfig?.id ?? "default") + "-" + section + "-2");
     }
 
     readonly property var dBarLayer: {
@@ -237,8 +238,8 @@ PanelWindow {
     }
 
     readonly property int notificationCount: NotificationService.notifications.length
-    readonly property real effectiveBarThickness: Math.max(barWindow.widgetThickness + (barConfig?.innerPadding ?? 4) + 4, Theme.barHeight - 4 - (8 - (barConfig?.innerPadding ?? 4)))
-    readonly property real widgetThickness: Math.max(20, 26 + (barConfig?.innerPadding ?? 4) * 0.6)
+    readonly property real effectiveBarThickness: Theme.snap(Math.max(barWindow.widgetThickness + (barConfig?.innerPadding ?? 4) + 4, Theme.barHeight - 4 - (8 - (barConfig?.innerPadding ?? 4))), _dpr)
+    readonly property real widgetThickness: Theme.snap(Math.max(20, 26 + (barConfig?.innerPadding ?? 4) * 0.6), _dpr)
 
     readonly property bool hasAdjacentTopBar: {
         if (barConfig?.autoHide ?? false)

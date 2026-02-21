@@ -37,6 +37,7 @@ Item {
             return DwlService.activeOutput || root.screenName;
         case "sway":
         case "scroll":
+        case "miracle":
             const focusedWs = I3.workspaces?.values?.find(ws => ws.focused === true);
             return focusedWs?.monitor?.name || root.screenName;
         default:
@@ -44,7 +45,7 @@ Item {
         }
     }
 
-    readonly property bool useExtWorkspace: DMSService.forceExtWorkspace || (!CompositorService.isNiri && !CompositorService.isHyprland && !CompositorService.isDwl && !CompositorService.isSway && !CompositorService.isScroll && ExtWorkspaceService.extWorkspaceAvailable)
+    readonly property bool useExtWorkspace: DMSService.forceExtWorkspace || (!CompositorService.isNiri && !CompositorService.isHyprland && !CompositorService.isDwl && !CompositorService.isSway && !CompositorService.isScroll && !CompositorService.isMiracle && ExtWorkspaceService.extWorkspaceAvailable)
 
     Connections {
         target: DesktopEntries
@@ -67,6 +68,7 @@ Item {
             return activeTags.length > 0 ? activeTags[0] : -1;
         case "sway":
         case "scroll":
+        case "miracle":
             return getSwayActiveWorkspace();
         default:
             return 1;
@@ -97,6 +99,7 @@ Item {
             break;
         case "sway":
         case "scroll":
+        case "miracle":
             baseList = getSwayWorkspaces();
             break;
         default:
@@ -114,12 +117,23 @@ Item {
                 }
             ];
 
+        function mapWorkspace(ws) {
+            return {
+                "num": ws.number,
+                "name": ws.name,
+                "focused": ws.focused,
+                "active": ws.active,
+                "urgent": ws.urgent,
+                "monitor": ws.monitor
+            };
+        }
+
         if (!root.screenName || SettingsData.workspaceFollowFocus) {
-            return workspaces.slice().sort((a, b) => a.num - b.num);
+            return workspaces.slice().sort((a, b) => a.num - b.num).map(mapWorkspace);
         }
 
         const monitorWorkspaces = workspaces.filter(ws => ws.monitor?.name === root.screenName);
-        return monitorWorkspaces.length > 0 ? monitorWorkspaces.sort((a, b) => a.num - b.num) : [
+        return monitorWorkspaces.length > 0 ? monitorWorkspaces.sort((a, b) => a.num - b.num).map(mapWorkspace) : [
             {
                 "num": 1
             }
@@ -222,7 +236,7 @@ Item {
                 return [];
             }
             targetWorkspaceId = ws.tag;
-        } else if (CompositorService.isSway || CompositorService.isScroll) {
+        } else if (CompositorService.isSway || CompositorService.isScroll || CompositorService.isMiracle) {
             targetWorkspaceId = ws.num !== undefined ? ws.num : ws;
         } else {
             return [];
@@ -234,7 +248,7 @@ Item {
         let isActiveWs = false;
         if (CompositorService.isNiri) {
             isActiveWs = NiriService.allWorkspaces.some(ws => ws.id === targetWorkspaceId && ws.is_active);
-        } else if (CompositorService.isSway || CompositorService.isScroll) {
+        } else if (CompositorService.isSway || CompositorService.isScroll || CompositorService.isMiracle) {
             const focusedWs = I3.workspaces?.values?.find(ws => ws.focused === true);
             isActiveWs = focusedWs ? (focusedWs.num === targetWorkspaceId) : false;
         } else if (CompositorService.isDwl) {
@@ -255,7 +269,7 @@ Item {
             let winWs = null;
             if (CompositorService.isNiri) {
                 winWs = w.workspace_id;
-            } else if (CompositorService.isSway || CompositorService.isScroll) {
+            } else if (CompositorService.isSway || CompositorService.isScroll || CompositorService.isMiracle) {
                 winWs = w.workspace?.num;
             } else {
                 const hyprlandToplevels = Array.from(Hyprland.toplevels?.values || []);
@@ -322,7 +336,7 @@ Item {
             placeholder = {
                 "tag": -1
             };
-        } else if (CompositorService.isSway || CompositorService.isScroll) {
+        } else if (CompositorService.isSway || CompositorService.isScroll || CompositorService.isMiracle) {
             placeholder = {
                 "num": -1
             };
@@ -516,7 +530,7 @@ Item {
                 return ws && ws.id !== -1;
             if (CompositorService.isDwl)
                 return ws && ws.tag !== -1;
-            if (CompositorService.isSway || CompositorService.isScroll)
+            if (CompositorService.isSway || CompositorService.isScroll || CompositorService.isMiracle)
                 return ws && ws.num !== -1;
             return ws !== -1;
         });
@@ -588,7 +602,7 @@ Item {
             }
 
             DwlService.switchToTag(root.screenName, realWorkspaces[nextIndex].tag);
-        } else if (CompositorService.isSway || CompositorService.isScroll) {
+        } else if (CompositorService.isSway || CompositorService.isScroll || CompositorService.isMiracle) {
             const realWorkspaces = getRealWorkspaces();
             if (realWorkspaces.length < 2) {
                 return;
@@ -617,7 +631,7 @@ Item {
             return modelData?.id || "";
         if (CompositorService.isDwl)
             return (modelData?.tag !== undefined) ? (modelData.tag + 1) : "";
-        if (CompositorService.isSway || CompositorService.isScroll)
+        if (CompositorService.isSway || CompositorService.isScroll || CompositorService.isMiracle)
             return modelData?.num || "";
         return modelData - 1;
     }
@@ -632,7 +646,7 @@ Item {
             isPlaceholder = modelData?.id === -1;
         } else if (CompositorService.isDwl) {
             isPlaceholder = modelData?.tag === -1;
-        } else if (CompositorService.isSway || CompositorService.isScroll) {
+        } else if (CompositorService.isSway || CompositorService.isScroll || CompositorService.isMiracle) {
             isPlaceholder = modelData?.num === -1;
         } else {
             isPlaceholder = modelData === -1;
@@ -665,7 +679,7 @@ Item {
         return getWorkspaceIndexFallback(modelData, index);
     }
 
-    readonly property bool hasNativeWorkspaceSupport: CompositorService.isNiri || CompositorService.isHyprland || CompositorService.isDwl || CompositorService.isSway || CompositorService.isScroll
+    readonly property bool hasNativeWorkspaceSupport: CompositorService.isNiri || CompositorService.isHyprland || CompositorService.isDwl || CompositorService.isSway || CompositorService.isScroll || CompositorService.isMiracle
     readonly property bool hasWorkspaces: getRealWorkspaces().length > 0
     readonly property bool shouldShow: hasNativeWorkspaceSupport || (useExtWorkspace && hasWorkspaces)
 
@@ -789,6 +803,18 @@ Item {
         }
     }
 
+    property int dragSourceIndex: -1
+    property int dragTargetIndex: -1
+    property bool suppressShiftAnimation: false
+
+    onWorkspaceListChanged: {
+        if (dragSourceIndex >= 0) {
+            dragSourceIndex = -1;
+            dragTargetIndex = -1;
+            suppressShiftAnimation = false;
+        }
+    }
+
     Flow {
         id: workspaceRow
 
@@ -798,12 +824,51 @@ Item {
         flow: isVertical ? Flow.TopToBottom : Flow.LeftToRight
 
         Repeater {
+            id: workspaceRepeater
             model: ScriptModel {
                 values: root.workspaceList
             }
 
             Item {
                 id: delegateRoot
+
+                property bool isDropTarget: root.dragTargetIndex === index
+
+                z: dragHandler.dragging ? 1000 : 1
+
+                property real shiftOffset: {
+                    if (root.dragSourceIndex < 0 || index === root.dragSourceIndex)
+                        return 0;
+                    const dragIdx = root.dragSourceIndex;
+                    const dropIdx = root.dragTargetIndex;
+                    if (dropIdx < 0)
+                        return 0;
+                    const shiftAmount = delegateRoot.width + Theme.spacingS;
+                    if (dragIdx < dropIdx && index > dragIdx && index <= dropIdx)
+                        return -shiftAmount;
+                    if (dragIdx > dropIdx && index >= dropIdx && index < dragIdx)
+                        return shiftAmount;
+                    return 0;
+                }
+
+                transform: Translate {
+                    x: root.isVertical ? 0 : delegateRoot.shiftOffset
+                    y: root.isVertical ? delegateRoot.shiftOffset : 0
+                    Behavior on x {
+                        enabled: !root.suppressShiftAnimation
+                        NumberAnimation {
+                            duration: 150
+                            easing.type: Easing.OutCubic
+                        }
+                    }
+                    Behavior on y {
+                        enabled: !root.suppressShiftAnimation
+                        NumberAnimation {
+                            duration: 150
+                            easing.type: Easing.OutCubic
+                        }
+                    }
+                }
 
                 property bool isActive: {
                     if (root.useExtWorkspace)
@@ -814,7 +879,7 @@ Item {
                         return !!(modelData && modelData.id === root.currentWorkspace);
                     if (CompositorService.isDwl)
                         return !!(modelData && root.dwlActiveTags.includes(modelData.tag));
-                    if (CompositorService.isSway || CompositorService.isScroll)
+                    if (CompositorService.isSway || CompositorService.isScroll || CompositorService.isMiracle)
                         return !!(modelData && modelData.num === root.currentWorkspace);
                     return modelData === root.currentWorkspace;
                 }
@@ -838,7 +903,7 @@ Item {
                         return !!(modelData && modelData.id === -1);
                     if (CompositorService.isDwl)
                         return !!(modelData && modelData.tag === -1);
-                    if (CompositorService.isSway || CompositorService.isScroll)
+                    if (CompositorService.isSway || CompositorService.isScroll || CompositorService.isMiracle)
                         return !!(modelData && modelData.num === -1);
                     return modelData === -1;
                 }
@@ -855,12 +920,17 @@ Item {
                         return loadedIsUrgent;
                     if (CompositorService.isDwl)
                         return modelData?.state === 2;
-                    if (CompositorService.isSway || CompositorService.isScroll)
+                    if (CompositorService.isSway || CompositorService.isScroll || CompositorService.isMiracle)
                         return loadedIsUrgent;
                     return false;
                 }
-                property var loadedIconData: null
-                property bool loadedHasIcon: false
+                readonly property var loadedIconData: {
+                    if (isPlaceholder) return null;
+                    const name = modelData?.name;
+                    if (!name) return null;
+                    return SettingsData.getWorkspaceNameIcon(name);
+                }
+                readonly property bool loadedHasIcon: loadedIconData !== null
                 property var loadedIcons: []
 
                 readonly property int stableIconCount: {
@@ -876,7 +946,7 @@ Item {
                         targetWorkspaceId = modelData?.id;
                     } else if (CompositorService.isDwl) {
                         targetWorkspaceId = modelData?.tag;
-                    } else if (CompositorService.isSway || CompositorService.isScroll) {
+                    } else if (CompositorService.isSway || CompositorService.isScroll || CompositorService.isMiracle) {
                         targetWorkspaceId = modelData?.num;
                     }
                     if (targetWorkspaceId === undefined || targetWorkspaceId === null)
@@ -895,7 +965,7 @@ Item {
                         let winWs = null;
                         if (CompositorService.isNiri) {
                             winWs = w.workspace_id;
-                        } else if (CompositorService.isSway || CompositorService.isScroll) {
+                        } else if (CompositorService.isSway || CompositorService.isScroll || CompositorService.isMiracle) {
                             winWs = w.workspace?.num;
                         } else if (CompositorService.isHyprland) {
                             const hyprlandToplevels = Array.from(Hyprland.toplevels?.values || []);
@@ -920,9 +990,9 @@ Item {
                 readonly property real baseWidth: root.isVertical ? (SettingsData.showWorkspaceApps ? Math.max(widgetHeight * 0.7, root.appIconSize + Theme.spacingXS * 2) : widgetHeight * 0.5) : (isActive ? root.widgetHeight * 1.05 : root.widgetHeight * 0.7)
                 readonly property real baseHeight: root.isVertical ? (isActive ? root.widgetHeight * 1.05 : root.widgetHeight * 0.7) : (SettingsData.showWorkspaceApps ? Math.max(widgetHeight * 0.7, root.appIconSize + Theme.spacingXS * 2) : widgetHeight * 0.5)
                 readonly property bool hasWorkspaceName: SettingsData.showWorkspaceName && modelData?.name && modelData.name !== ""
-                readonly property bool workspaceNamesEnabled: SettingsData.showWorkspaceName && CompositorService.isNiri
-                readonly property real contentImplicitWidth: (hasWorkspaceName || loadedHasIcon) ? (appIconsLoader.item?.contentWidth ?? 0) : 0
-                readonly property real contentImplicitHeight: (workspaceNamesEnabled || loadedHasIcon) ? (appIconsLoader.item?.contentHeight ?? 0) : 0
+                readonly property bool workspaceNamesEnabled: SettingsData.showWorkspaceName && (CompositorService.isNiri || CompositorService.isSway || CompositorService.isScroll || CompositorService.isMiracle)
+                readonly property real contentImplicitWidth: hasWorkspaceName ? (appIconsLoader.item?.contentWidth ?? 0) : 0
+                readonly property real contentImplicitHeight: workspaceNamesEnabled ? (appIconsLoader.item?.contentHeight ?? 0) : 0
 
                 readonly property real iconsExtraWidth: {
                     if (!root.isVertical && SettingsData.showWorkspaceApps && stableIconCount > 0) {
@@ -1031,45 +1101,122 @@ Item {
                 readonly property color quickshellIconActiveColor: getContrastingIconColor(activeColor)
                 readonly property color quickshellIconInactiveColor: getContrastingIconColor(unfocusedColor)
 
+                Item {
+                    id: dragHandler
+                    anchors.fill: parent
+                    property bool dragging: false
+                    property point dragStartPos: Qt.point(0, 0)
+                    property real dragAxisOffset: 0
+
+                    Connections {
+                        target: root
+                        function onWorkspaceListChanged() {
+                            if (dragHandler.dragging) {
+                                dragHandler.dragging = false;
+                                dragHandler.dragAxisOffset = 0;
+                                mouseArea.mousePressed = false;
+                            }
+                        }
+                    }
+                }
+
                 MouseArea {
                     id: mouseArea
                     anchors.fill: parent
                     hoverEnabled: !isPlaceholder
-                    cursorShape: isPlaceholder ? Qt.ArrowCursor : Qt.PointingHandCursor
+                    cursorShape: isPlaceholder ? Qt.ArrowCursor : (dragHandler.dragging ? Qt.ClosedHandCursor : Qt.PointingHandCursor)
                     enabled: !isPlaceholder
                     acceptedButtons: Qt.LeftButton | Qt.RightButton
-                    onClicked: mouse => {
-                        if (isPlaceholder)
-                            return;
-                        const isRightClick = mouse.button === Qt.RightButton;
 
-                        if (root.useExtWorkspace && (modelData?.id || modelData?.name)) {
-                            ExtWorkspaceService.activateWorkspace(modelData.id || modelData.name, modelData.groupID || "");
-                        } else if (CompositorService.isNiri) {
-                            if (isRightClick) {
-                                NiriService.toggleOverview();
-                            } else if (modelData && modelData.idx !== undefined) {
-                                NiriService.switchToWorkspace(modelData.idx);
+                    property bool mousePressed: false
+
+                    onPressed: mouse => {
+                        if (mouse.button === Qt.LeftButton && CompositorService.isNiri && SettingsData.workspaceDragReorder && !isPlaceholder) {
+                            mousePressed = true;
+                            dragHandler.dragStartPos = Qt.point(mouse.x, mouse.y);
+                        }
+                    }
+
+                    onPositionChanged: mouse => {
+                        if (!mousePressed || !CompositorService.isNiri || !SettingsData.workspaceDragReorder || isPlaceholder)
+                            return;
+
+                        if (!dragHandler.dragging) {
+                            const distance = root.isVertical ? Math.abs(mouse.y - dragHandler.dragStartPos.y) : Math.abs(mouse.x - dragHandler.dragStartPos.x);
+                            if (distance > 5) {
+                                dragHandler.dragging = true;
+                                root.dragSourceIndex = index;
+                                root.dragTargetIndex = index;
                             }
-                        } else if (CompositorService.isHyprland && modelData?.id) {
-                            if (isRightClick && root.hyprlandOverviewLoader?.item) {
-                                root.hyprlandOverviewLoader.item.overviewOpen = !root.hyprlandOverviewLoader.item.overviewOpen;
-                            } else {
+                        }
+
+                        if (!dragHandler.dragging)
+                            return;
+
+                        const rawAxisOffset = root.isVertical ? (mouse.y - dragHandler.dragStartPos.y) : (mouse.x - dragHandler.dragStartPos.x);
+
+                        const itemSize = (root.isVertical ? delegateRoot.height : delegateRoot.width) + Theme.spacingS;
+                        const maxOffsetPositive = (root.workspaceList.length - 1 - index) * itemSize;
+                        const maxOffsetNegative = -index * itemSize;
+                        const axisOffset = Math.max(maxOffsetNegative, Math.min(maxOffsetPositive, rawAxisOffset));
+                        dragHandler.dragAxisOffset = axisOffset;
+
+                        const slotOffset = Math.round(axisOffset / itemSize);
+                        const newTargetIndex = Math.max(0, Math.min(root.workspaceList.length - 1, index + slotOffset));
+
+                        if (newTargetIndex !== root.dragTargetIndex) {
+                            root.dragTargetIndex = newTargetIndex;
+                        }
+                    }
+
+                    onReleased: mouse => {
+                        const wasDragging = dragHandler.dragging;
+                        const didReorder = wasDragging && root.dragTargetIndex >= 0 && root.dragTargetIndex !== root.dragSourceIndex;
+
+                        if (didReorder) {
+                            const sourceWs = root.workspaceList[root.dragSourceIndex];
+                            const targetWs = root.workspaceList[root.dragTargetIndex];
+
+                            if (sourceWs && targetWs && sourceWs.idx !== undefined && targetWs.idx !== undefined) {
+                                root.suppressShiftAnimation = true;
+                                NiriService.moveWorkspaceToIndex(sourceWs.idx, targetWs.idx);
+                                Qt.callLater(() => root.suppressShiftAnimation = false);
+                            }
+                        }
+
+                        mousePressed = false;
+                        dragHandler.dragging = false;
+                        dragHandler.dragAxisOffset = 0;
+                        root.dragSourceIndex = -1;
+                        root.dragTargetIndex = -1;
+
+                        if (wasDragging || isPlaceholder)
+                            return;
+
+                        if (mouse.button === Qt.LeftButton) {
+                            if (root.useExtWorkspace && (modelData?.id || modelData?.name)) {
+                                ExtWorkspaceService.activateWorkspace(modelData.id || modelData.name, modelData.groupID || "");
+                            } else if (CompositorService.isNiri) {
+                                if (modelData && modelData.idx !== undefined) {
+                                    NiriService.switchToWorkspace(modelData.idx);
+                                }
+                            } else if (CompositorService.isHyprland && modelData?.id) {
                                 Hyprland.dispatch(`workspace ${modelData.id}`);
-                            }
-                        } else if (CompositorService.isDwl && modelData?.tag !== undefined) {
-                            console.log("DWL click - tag:", modelData.tag, "rightClick:", isRightClick);
-                            if (isRightClick) {
-                                console.log("Calling toggleTag");
-                                DwlService.toggleTag(root.screenName, modelData.tag);
-                            } else {
-                                console.log("Calling switchToTag");
+                            } else if (CompositorService.isDwl && modelData?.tag !== undefined) {
                                 DwlService.switchToTag(root.screenName, modelData.tag);
+                            } else if ((CompositorService.isSway || CompositorService.isScroll || CompositorService.isMiracle) && modelData?.num) {
+                                try {
+                                    I3.dispatch(`workspace number ${modelData.num}`);
+                                } catch (_) {}
                             }
-                        } else if ((CompositorService.isSway || CompositorService.isScroll) && modelData?.num) {
-                            try {
-                                I3.dispatch(`workspace number ${modelData.num}`);
-                            } catch (_) {}
+                        } else if (mouse.button === Qt.RightButton) {
+                            if (CompositorService.isNiri) {
+                                NiriService.toggleOverview();
+                            } else if (CompositorService.isHyprland && root.hyprlandOverviewLoader?.item) {
+                                root.hyprlandOverviewLoader.item.overviewOpen = !root.hyprlandOverviewLoader.item.overviewOpen;
+                            } else if (CompositorService.isDwl && modelData?.tag !== undefined) {
+                                DwlService.toggleTag(root.screenName, modelData.tag);
+                            }
                         }
                     }
                 }
@@ -1080,8 +1227,6 @@ Item {
                     onTriggered: {
                         if (isPlaceholder) {
                             delegateRoot.loadedWorkspaceData = null;
-                            delegateRoot.loadedIconData = null;
-                            delegateRoot.loadedHasIcon = false;
                             delegateRoot.loadedIcons = [];
                             delegateRoot.loadedIsUrgent = false;
                             return;
@@ -1096,7 +1241,7 @@ Item {
                             wsData = modelData;
                         } else if (CompositorService.isDwl) {
                             wsData = modelData;
-                        } else if (CompositorService.isSway || CompositorService.isScroll) {
+                        } else if (CompositorService.isSway || CompositorService.isScroll || CompositorService.isMiracle) {
                             wsData = modelData;
                         }
                         delegateRoot.loadedWorkspaceData = wsData;
@@ -1107,15 +1252,8 @@ Item {
                             delegateRoot.loadedIsUrgent = wsData?.urgent ?? false;
                         }
 
-                        var icData = null;
-                        if (wsData?.name) {
-                            icData = SettingsData.getWorkspaceNameIcon(wsData.name);
-                        }
-                        delegateRoot.loadedIconData = icData;
-                        delegateRoot.loadedHasIcon = icData !== null;
-
                         if (SettingsData.showWorkspaceApps) {
-                            if (CompositorService.isDwl || CompositorService.isSway || CompositorService.isScroll) {
+                            if (CompositorService.isDwl || CompositorService.isSway || CompositorService.isScroll || CompositorService.isMiracle) {
                                 delegateRoot.loadedIcons = root.getWorkspaceIcons(modelData);
                             } else if (CompositorService.isNiri) {
                                 delegateRoot.loadedIcons = root.getWorkspaceIcons(isPlaceholder ? null : modelData);
@@ -1203,9 +1341,22 @@ Item {
                     y: root.isVertical ? (parent.height - height) / 2 : (root.widgetHeight - height) / 2
                     radius: Theme.cornerRadius
                     color: isActive ? activeColor : isUrgent ? urgentColor : isPlaceholder ? Theme.surfaceTextLight : isHovered ? Theme.withAlpha(unfocusedColor, 0.7) : isOccupied ? occupiedColor : unfocusedColor
+                    opacity: dragHandler.dragging ? 0.8 : 1.0
 
-                    border.width: isUrgent ? 2 : 0
-                    border.color: isUrgent ? urgentColor : "transparent"
+                    border.width: dragHandler.dragging ? 2 : (isUrgent ? 2 : (isDropTarget ? 2 : 0))
+                    border.color: dragHandler.dragging ? Theme.primary : (isUrgent ? urgentColor : (isDropTarget ? Theme.primary : "transparent"))
+
+                    transform: Translate {
+                        x: root.isVertical ? 0 : (dragHandler.dragging ? dragHandler.dragAxisOffset : 0)
+                        y: root.isVertical ? (dragHandler.dragging ? dragHandler.dragAxisOffset : 0) : 0
+                    }
+
+                    Behavior on opacity {
+                        NumberAnimation {
+                            duration: Theme.shortDuration
+                            easing.type: Theme.emphasizedEasing
+                        }
+                    }
 
                     Behavior on width {
                         NumberAnimation {
@@ -1265,7 +1416,7 @@ Item {
 
                                     Item {
                                         visible: loadedHasIcon && loadedIconData?.type === "icon"
-                                        width: wsIcon.width + (isActive && loadedIcons.length > 0 ? 4 : 0)
+                                        width: wsIcon.width
                                         height: root.appIconSize
 
                                         DankIcon {
@@ -1280,7 +1431,7 @@ Item {
 
                                     Item {
                                         visible: loadedHasIcon && loadedIconData?.type === "text"
-                                        width: wsText.implicitWidth + (isActive && loadedIcons.length > 0 ? 4 : 0)
+                                        width: wsText.implicitWidth
                                         height: root.appIconSize
 
                                         StyledText {
@@ -1294,14 +1445,14 @@ Item {
                                     }
 
                                     Item {
-                                        visible: (SettingsData.showWorkspaceIndex || SettingsData.showWorkspaceName) && !loadedHasIcon
-                                        width: wsIndexText.implicitWidth + (isActive && loadedIcons.length > 0 ? 4 : 0)
+                                        visible: ((SettingsData.showWorkspaceIndex || SettingsData.showWorkspaceName) && !loadedHasIcon) || (loadedHasIcon && SettingsData.showWorkspaceName && hasWorkspaceName)
+                                        width: wsIndexText.implicitWidth
                                         height: root.appIconSize
 
                                         StyledText {
                                             id: wsIndexText
                                             anchors.verticalCenter: parent.verticalCenter
-                                            text: root.getWorkspaceIndex(modelData, index)
+                                            text: loadedHasIcon ? (modelData?.name ?? "") : root.getWorkspaceIndex(modelData, index)
                                             color: (isActive || isUrgent) ? Qt.rgba(Theme.surfaceContainer.r, Theme.surfaceContainer.g, Theme.surfaceContainer.b, 0.95) : isPlaceholder ? Theme.surfaceTextAlpha : Theme.surfaceTextMedium
                                             font.pixelSize: Theme.barTextSize(barThickness, barConfig?.fontScale)
                                             font.weight: (isActive && !isPlaceholder) ? Font.DemiBold : Font.Normal
@@ -1419,9 +1570,9 @@ Item {
                                     }
 
                                     StyledText {
-                                        visible: (SettingsData.showWorkspaceIndex || SettingsData.showWorkspaceName) && !loadedHasIcon
+                                        visible: ((SettingsData.showWorkspaceIndex || SettingsData.showWorkspaceName) && !loadedHasIcon) || (loadedHasIcon && SettingsData.showWorkspaceName && hasWorkspaceName)
                                         anchors.horizontalCenter: parent.horizontalCenter
-                                        text: root.getWorkspaceIndex(modelData, index)
+                                        text: loadedHasIcon ? (root.isVertical ? (modelData?.name ?? "").charAt(0) : (modelData?.name ?? "")) : root.getWorkspaceIndex(modelData, index)
                                         color: (isActive || isUrgent) ? Qt.rgba(Theme.surfaceContainer.r, Theme.surfaceContainer.g, Theme.surfaceContainer.b, 0.95) : isPlaceholder ? Theme.surfaceTextAlpha : Theme.surfaceTextMedium
                                         font.pixelSize: Theme.barTextSize(barThickness, barConfig?.fontScale)
                                         font.weight: (isActive && !isPlaceholder) ? Font.DemiBold : Font.Normal
@@ -1515,55 +1666,6 @@ Item {
                         }
                     }
 
-                    // Loader for Custom Name Icon
-                    Loader {
-                        id: customIconLoader
-                        anchors.fill: parent
-                        active: !isPlaceholder && loadedHasIcon && loadedIconData.type === "icon" && !SettingsData.showWorkspaceApps
-                        sourceComponent: Item {
-                            DankIcon {
-                                anchors.centerIn: parent
-                                name: loadedIconData ? loadedIconData.value : "" // NULL CHECK
-                                size: Theme.fontSizeSmall
-                                color: isActive ? Qt.rgba(Theme.surfaceContainer.r, Theme.surfaceContainer.g, Theme.surfaceContainer.b, 0.95) : Theme.surfaceTextMedium
-                                weight: isActive && !isPlaceholder ? 500 : 400
-                            }
-                        }
-                    }
-
-                    // Loader for Custom Name Text
-                    Loader {
-                        id: customTextLoader
-                        anchors.fill: parent
-                        active: !isPlaceholder && loadedHasIcon && loadedIconData.type === "text" && !SettingsData.showWorkspaceApps
-                        sourceComponent: Item {
-                            StyledText {
-                                anchors.centerIn: parent
-                                text: loadedIconData ? loadedIconData.value : "" // NULL CHECK
-                                color: isActive ? Qt.rgba(Theme.surfaceContainer.r, Theme.surfaceContainer.g, Theme.surfaceContainer.b, 0.95) : Theme.surfaceTextMedium
-                                font.pixelSize: Theme.barTextSize(barThickness, barConfig?.fontScale)
-                                font.weight: (isActive && !isPlaceholder) ? Font.DemiBold : Font.Normal
-                            }
-                        }
-                    }
-
-                    // Loader for Workspace Index
-                    Loader {
-                        id: indexLoader
-                        anchors.fill: parent
-                        active: (SettingsData.showWorkspaceIndex || SettingsData.showWorkspaceName) && !loadedHasIcon && !SettingsData.showWorkspaceApps
-                        sourceComponent: Item {
-                            StyledText {
-                                anchors.centerIn: parent
-                                text: {
-                                    return root.getWorkspaceIndex(modelData, index);
-                                }
-                                color: (isActive || isUrgent) ? Qt.rgba(Theme.surfaceContainer.r, Theme.surfaceContainer.g, Theme.surfaceContainer.b, 0.95) : isPlaceholder ? Theme.surfaceTextAlpha : Theme.surfaceTextMedium
-                                font.pixelSize: Theme.barTextSize(barThickness, barConfig?.fontScale)
-                                font.weight: (isActive && !isPlaceholder) ? Font.DemiBold : Font.Normal
-                            }
-                        }
-                    }
                 }
 
                 Component.onCompleted: updateAllData()
@@ -1615,7 +1717,7 @@ Item {
                 }
                 Connections {
                     target: I3.workspaces
-                    enabled: (CompositorService.isSway || CompositorService.isScroll)
+                    enabled: (CompositorService.isSway || CompositorService.isScroll || CompositorService.isMiracle)
                     function onValuesChanged() {
                         delegateRoot.updateAllData();
                     }

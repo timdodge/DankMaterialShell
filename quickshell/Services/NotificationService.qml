@@ -22,7 +22,7 @@ Singleton {
 
     property list<NotifWrapper> notificationQueue: []
     property list<NotifWrapper> visibleNotifications: []
-    property int maxVisibleNotifications: 3
+    property int maxVisibleNotifications: 4
     property bool addGateBusy: false
     property int enterAnimMs: 400
     property int seqCounter: 0
@@ -158,10 +158,7 @@ Singleton {
                     continue;
                 const urg = typeof item.urgency === "number" ? item.urgency : 1;
                 const body = item.body || "";
-                let htmlBody = item.htmlBody || "";
-                if (!htmlBody && body) {
-                    htmlBody = (body.includes('<') && body.includes('>')) ? body : Markdown2Html.markdownToHtml(body);
-                }
+                const htmlBody = item.htmlBody || _resolveHtmlBody(body);
                 loaded.push({
                     id: item.id || "",
                     summary: item.summary || "",
@@ -251,23 +248,29 @@ Singleton {
         const timeStr = SettingsData.use24HourClock ? date.toLocaleTimeString(Qt.locale(), "HH:mm") : date.toLocaleTimeString(Qt.locale(), "h:mm AP");
         if (daysDiff === 0)
             return timeStr;
-        if (daysDiff === 1)
-            return I18n.tr("yesterday") + ", " + timeStr;
-        return I18n.tr("%1 days ago").arg(daysDiff);
+        try {
+            const localeName = (typeof Qt !== "undefined" && Qt.locale) ? Qt.locale().name : "en-US";
+            const weekday = date.toLocaleDateString(localeName, {
+                weekday: "long"
+            });
+            return weekday + ", " + timeStr;
+        } catch (e) {
+            return timeStr;
+        }
     }
 
     function _nowSec() {
         return Date.now() / 1000.0;
     }
 
-    function _ingressAllowed(notif) {
+    function _ingressAllowed(urgency) {
         const t = _nowSec();
         if (t - _lastIngressSec >= 1.0) {
             _lastIngressSec = t;
             _ingressCountThisSec = 0;
         }
         _ingressCountThisSec += 1;
-        if (notif.urgency === NotificationUrgency.Critical) {
+        if (urgency === NotificationUrgency.Critical) {
             return true;
         }
         return _ingressCountThisSec <= maxIngressPerSecond;
@@ -294,11 +297,13 @@ Singleton {
 
     function _initWrapperPersistence(wrapper) {
         const timeoutMs = wrapper.timer ? wrapper.timer.interval : 5000;
-        const isCritical = wrapper.notification && wrapper.notification.urgency === NotificationUrgency.Critical;
+        const isCritical = wrapper && wrapper.urgency === NotificationUrgency.Critical;
         wrapper.isPersistent = isCritical || (timeoutMs === 0);
     }
 
-    function _shouldSaveToHistory(urgency) {
+    function _shouldSaveToHistory(urgency, forceDisable) {
+        if (forceDisable === true)
+            return false;
         if (!SettingsData.notificationHistoryEnabled)
             return false;
         switch (urgency) {
@@ -309,6 +314,126 @@ Singleton {
         default:
             return SettingsData.notificationHistorySaveNormal;
         }
+    }
+
+    function _resolveAppNameForRule(notif) {
+        if (!notif)
+            return "";
+        if (notif.appName && notif.appName !== "")
+            return notif.appName;
+        const entry = DesktopEntries.heuristicLookup(notif.desktopEntry);
+        if (entry && entry.name)
+            return entry.name;
+        return "";
+    }
+
+    function _ruleFieldValue(field, info) {
+        switch ((field || "").toString()) {
+        case "desktopEntry":
+            return info.desktopEntry;
+        case "summary":
+            return info.summary;
+        case "body":
+            return info.body;
+        case "appName":
+        default:
+            return info.appName;
+        }
+    }
+
+    function _coerceRuleUrgency(value, fallbackUrgency) {
+        if (typeof value === "number" && value >= NotificationUrgency.Low && value <= NotificationUrgency.Critical)
+            return value;
+
+        const mapped = (value || "default").toString().toLowerCase();
+        switch (mapped) {
+        case "low":
+            return NotificationUrgency.Low;
+        case "normal":
+            return NotificationUrgency.Normal;
+        case "critical":
+            return NotificationUrgency.Critical;
+        default:
+            return fallbackUrgency;
+        }
+    }
+
+    function _matchesNotificationRule(rule, info) {
+        if (!rule)
+            return false;
+        if (rule.enabled === false)
+            return false;
+
+        const pattern = (rule.pattern || "").toString();
+        if (!pattern.trim())
+            return false;
+
+        const value = (_ruleFieldValue(rule.field, info) || "").toString();
+        const matchType = (rule.matchType || "contains").toString().toLowerCase();
+
+        if (matchType === "exact")
+            return value.toLowerCase() === pattern.toLowerCase();
+        if (matchType === "regex") {
+            try {
+                return new RegExp(pattern, "i").test(value);
+            } catch (e) {
+                console.warn("NotificationService: invalid notification rule regex:", pattern);
+                return false;
+            }
+        }
+
+        return value.toLowerCase().includes(pattern.toLowerCase());
+    }
+
+    function _evaluateNotificationPolicy(notif) {
+        const baseUrgency = typeof notif.urgency === "number" ? notif.urgency : NotificationUrgency.Normal;
+        const policy = {
+            "drop": false,
+            "disablePopup": false,
+            "hideFromCenter": false,
+            "disableHistory": false,
+            "urgency": baseUrgency
+        };
+
+        const rules = SettingsData.notificationRules || [];
+        if (!rules.length)
+            return policy;
+
+        const info = {
+            "appName": _resolveAppNameForRule(notif),
+            "desktopEntry": notif.desktopEntry || "",
+            "summary": notif.summary || "",
+            "body": notif.body || ""
+        };
+
+        for (const rule of rules) {
+            if (!_matchesNotificationRule(rule, info))
+                continue;
+
+            const action = (rule.action || "default").toString().toLowerCase();
+            switch (action) {
+            case "ignore":
+                policy.drop = true;
+                break;
+            case "mute":
+                policy.disablePopup = true;
+                break;
+            case "popup_only":
+                policy.hideFromCenter = true;
+                policy.disableHistory = true;
+                break;
+            case "no_history":
+                policy.disableHistory = true;
+                break;
+            default:
+                break;
+            }
+
+            policy.urgency = _coerceRuleUrgency(rule.urgency, policy.urgency);
+            return policy;
+        }
+
+        return policy;
     }
 
     function pruneHistory() {
@@ -362,7 +487,7 @@ Singleton {
 
     Timer {
         id: addGate
-        interval: enterAnimMs + 50
+        interval: 80
         running: false
         repeat: false
         onTriggered: {
@@ -440,8 +565,16 @@ Singleton {
         onNotification: notif => {
             notif.tracked = true;
 
-            if (!_ingressAllowed(notif)) {
-                if (notif.urgency !== NotificationUrgency.Critical) {
+            const policy = _evaluateNotificationPolicy(notif);
+            if (policy.drop) {
+                try {
+                    notif.dismiss();
+                } catch (e) {}
+                return;
+            }
+
+            if (!_ingressAllowed(policy.urgency)) {
+                if (policy.urgency !== NotificationUrgency.Critical) {
                     try {
                         notif.dismiss();
                     } catch (e) {}
@@ -450,25 +583,35 @@ Singleton {
             }
 
             if (SettingsData.soundsEnabled && SettingsData.soundNewNotification) {
-                if (notif.urgency === NotificationUrgency.Critical) {
+                if (policy.urgency === NotificationUrgency.Critical) {
                     AudioService.playCriticalNotificationSound();
                 } else {
                     AudioService.playNormalNotificationSound();
                 }
             }
 
-            const shouldShowPopup = !root.popupsDisabled && !SessionData.doNotDisturb;
+            const shouldShowPopup = !root.popupsDisabled && !SessionData.doNotDisturb && !policy.disablePopup;
             const isTransient = notif.transient;
+            const shouldKeepInCenter = !isTransient && !policy.hideFromCenter;
+
+            if (!shouldShowPopup && !shouldKeepInCenter) {
+                try {
+                    notif.dismiss();
+                } catch (e) {}
+                return;
+            }
+
             const wrapper = notifComponent.createObject(root, {
                 "popup": shouldShowPopup,
-                "notification": notif
+                "notification": notif,
+                "urgencyOverride": policy.urgency
             });
 
             if (wrapper) {
                 root.allWrappers.push(wrapper);
-                if (!isTransient) {
+                if (shouldKeepInCenter) {
                     root.notifications.push(wrapper);
-                    if (_shouldSaveToHistory(notif.urgency)) {
+                    if (_shouldSaveToHistory(wrapper.urgency, policy.disableHistory)) {
                         root.addToHistory(wrapper);
                     }
                 }
@@ -505,7 +648,7 @@ Singleton {
             interval: {
                 if (!wrapper.notification)
                     return 5000;
-                switch (wrapper.notification.urgency) {
+                switch (wrapper.urgency) {
                 case NotificationUrgency.Low:
                     return SettingsData.notificationTimeoutLow;
                 case NotificationUrgency.Critical:
@@ -548,11 +691,15 @@ Singleton {
                 return formatTime(time);
             }
 
-            if (daysDiff === 1) {
-                return `yesterday, ${formatTime(time)}`;
+            try {
+                const localeName = (typeof Qt !== "undefined" && Qt.locale) ? Qt.locale().name : "en-US";
+                const weekday = time.toLocaleDateString(localeName, {
+                    weekday: "long"
+                });
+                return `${weekday}, ${formatTime(time)}`;
+            } catch (e) {
+                return formatTime(time);
             }
-
-            return `${daysDiff} days ago`;
         }
 
         function formatTime(date) {
@@ -575,13 +722,7 @@ Singleton {
         required property Notification notification
         readonly property string summary: notification?.summary ?? ""
         readonly property string body: notification?.body ?? ""
-        readonly property string htmlBody: {
-            if (!body)
-                return "";
-            if (body.includes('<') && body.includes('>'))
-                return body;
-            return Markdown2Html.markdownToHtml(body);
-        }
+        readonly property string htmlBody: root._resolveHtmlBody(body)
         readonly property string appIcon: notification?.appIcon ?? ""
         readonly property string appName: {
             if (!notification)
@@ -600,7 +741,8 @@ Singleton {
                 return "";
             return Paths.strip(image);
         }
-        readonly property int urgency: notification?.urgency ?? 1
+        property int urgencyOverride: notification?.urgency ?? NotificationUrgency.Normal
+        readonly property int urgency: urgencyOverride
         readonly property list<NotificationAction> actions: notification?.actions ?? []
 
         readonly property Connections conn: Connections {
@@ -696,39 +838,54 @@ Singleton {
         }
     }
 
-    function processQueue() {
-        if (addGateBusy) {
-            return;
-        }
-        if (popupsDisabled) {
-            return;
-        }
-        if (SessionData.doNotDisturb) {
-            return;
-        }
-        if (notificationQueue.length === 0) {
-            return;
-        }
+    property bool _processingQueue: false
 
-        const activePopupCount = visibleNotifications.filter(n => n && n.popup).length;
-        if (activePopupCount >= 4) {
+    function processQueue() {
+        if (addGateBusy || _processingQueue)
             return;
-        }
+        if (popupsDisabled)
+            return;
+        if (SessionData.doNotDisturb)
+            return;
+        if (notificationQueue.length === 0)
+            return;
+
+        _processingQueue = true;
 
         const next = notificationQueue.shift();
-        if (!next)
+        if (!next) {
+            _processingQueue = false;
             return;
+        }
 
         next.seq = ++seqCounter;
-        visibleNotifications = [...visibleNotifications, next];
+
+        const activePopups = visibleNotifications.filter(n => n && n.popup);
+        let evicted = null;
+        if (activePopups.length >= maxVisibleNotifications) {
+            const unhovered = activePopups.filter(n => n.timer?.running);
+            const pool = unhovered.length > 0 ? unhovered : activePopups;
+            evicted = pool.reduce((min, n) => (n.seq < min.seq) ? n : min, pool[0]);
+            if (evicted)
+                evicted.removedByLimit = true;
+        }
+
+        if (evicted) {
+            visibleNotifications = [...visibleNotifications.filter(n => n !== evicted), next];
+        } else {
+            visibleNotifications = [...visibleNotifications, next];
+        }
+
+        if (evicted)
+            evicted.popup = false;
         next.popup = true;
 
-        if (next.timer.interval > 0) {
+        if (next.timer.interval > 0)
             next.timer.start();
-        }
 
         addGateBusy = true;
         addGate.restart();
+        _processingQueue = false;
     }
 
     function removeFromVisibleNotifications(wrapper) {
@@ -747,6 +904,96 @@ Singleton {
                 } catch (e) {}
             });
         }
+    }
+
+    function _decodeEntities(s) {
+        s = s.replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(parseInt(n, 10)));
+        s = s.replace(/&#x([0-9a-fA-F]+);/g, (_, n) => String.fromCodePoint(parseInt(n, 16)));
+        return s.replace(/&([a-zA-Z][a-zA-Z0-9]*);/g, (match, name) => {
+            switch (name) {
+            case "amp":
+                return "&";
+            case "lt":
+                return "<";
+            case "gt":
+                return ">";
+            case "quot":
+                return "\"";
+            case "apos":
+                return "'";
+            case "nbsp":
+                return "\u00A0";
+            case "ndash":
+                return "\u2013";
+            case "mdash":
+                return "\u2014";
+            case "lsquo":
+                return "\u2018";
+            case "rsquo":
+                return "\u2019";
+            case "ldquo":
+                return "\u201C";
+            case "rdquo":
+                return "\u201D";
+            case "bull":
+                return "\u2022";
+            case "hellip":
+                return "\u2026";
+            case "trade":
+                return "\u2122";
+            case "copy":
+                return "\u00A9";
+            case "reg":
+                return "\u00AE";
+            case "deg":
+                return "\u00B0";
+            case "plusmn":
+                return "\u00B1";
+            case "times":
+                return "\u00D7";
+            case "divide":
+                return "\u00F7";
+            case "micro":
+                return "\u00B5";
+            case "middot":
+                return "\u00B7";
+            case "laquo":
+                return "\u00AB";
+            case "raquo":
+                return "\u00BB";
+            case "larr":
+                return "\u2190";
+            case "rarr":
+                return "\u2192";
+            case "uarr":
+                return "\u2191";
+            case "darr":
+                return "\u2193";
+            default:
+                return match;
+            }
+        });
+    }
+
+    function _resolveHtmlBody(body) {
+        if (!body)
+            return "";
+        if (/<\/?[a-z][\s\S]*>/i.test(body))
+            return body;
+
+        // Decode percent-encoded URLs (e.g. https%3A%2F%2F → https://)
+        body = body.replace(/\bhttps?%3A%2F%2F[^\s]+/gi, match => {
+            try { return decodeURIComponent(match); }
+            catch (e) { return match; }
+        });
+
+        if (/&(#\d+|#x[0-9a-fA-F]+|[a-zA-Z][a-zA-Z0-9]+);/.test(body)) {
+            const decoded = _decodeEntities(body);
+            if (/<\/?[a-z][\s\S]*>/i.test(decoded))
+                return decoded;
+            return Markdown2Html.markdownToHtml(decoded);
+        }
+        return Markdown2Html.markdownToHtml(body);
     }
 
     function getGroupKey(wrapper) {

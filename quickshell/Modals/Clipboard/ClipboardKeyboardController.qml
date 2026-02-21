@@ -1,4 +1,6 @@
 import QtQuick
+import qs.Common
+import qs.Services
 
 QtObject {
     id: keyboardController
@@ -6,48 +8,56 @@ QtObject {
     required property var modal
 
     function reset() {
-        modal.selectedIndex = 0;
-        modal.keyboardNavigationActive = false;
+        ClipboardService.selectedIndex = 0;
+        ClipboardService.keyboardNavigationActive = false;
         modal.showKeyboardHints = false;
     }
 
     function selectNext() {
-        if (!modal.clipboardEntries || modal.clipboardEntries.length === 0) {
+        const entries = modal.activeTab === "saved" ? ClipboardService.pinnedEntries : ClipboardService.unpinnedEntries;
+        if (!entries || entries.length === 0) {
             return;
         }
-        modal.keyboardNavigationActive = true;
-        modal.selectedIndex = Math.min(modal.selectedIndex + 1, modal.clipboardEntries.length - 1);
+        ClipboardService.keyboardNavigationActive = true;
+        ClipboardService.selectedIndex = Math.min(ClipboardService.selectedIndex + 1, entries.length - 1);
     }
 
     function selectPrevious() {
-        if (!modal.clipboardEntries || modal.clipboardEntries.length === 0) {
+        const entries = modal.activeTab === "saved" ? ClipboardService.pinnedEntries : ClipboardService.unpinnedEntries;
+        if (!entries || entries.length === 0) {
             return;
         }
-        modal.keyboardNavigationActive = true;
-        modal.selectedIndex = Math.max(modal.selectedIndex - 1, 0);
+        ClipboardService.keyboardNavigationActive = true;
+        ClipboardService.selectedIndex = Math.max(ClipboardService.selectedIndex - 1, 0);
     }
 
     function copySelected() {
-        if (!modal.clipboardEntries || modal.clipboardEntries.length === 0 || modal.selectedIndex < 0 || modal.selectedIndex >= modal.clipboardEntries.length) {
+        const entries = modal.activeTab === "saved" ? ClipboardService.pinnedEntries : ClipboardService.unpinnedEntries;
+        if (!entries || entries.length === 0 || ClipboardService.selectedIndex < 0 || ClipboardService.selectedIndex >= entries.length) {
             return;
         }
-        const selectedEntry = modal.clipboardEntries[modal.selectedIndex];
+        const selectedEntry = entries[ClipboardService.selectedIndex];
         modal.copyEntry(selectedEntry);
     }
 
     function deleteSelected() {
-        if (!modal.clipboardEntries || modal.clipboardEntries.length === 0 || modal.selectedIndex < 0 || modal.selectedIndex >= modal.clipboardEntries.length) {
+        const entries = modal.activeTab === "saved" ? ClipboardService.pinnedEntries : ClipboardService.unpinnedEntries;
+        if (!entries || entries.length === 0 || ClipboardService.selectedIndex < 0 || ClipboardService.selectedIndex >= entries.length) {
             return;
         }
-        const selectedEntry = modal.clipboardEntries[modal.selectedIndex];
-        modal.deleteEntry(selectedEntry);
+        const selectedEntry = entries[ClipboardService.selectedIndex];
+        if (modal.activeTab === "saved") {
+            modal.deletePinnedEntry(selectedEntry);
+        } else {
+            modal.deleteEntry(selectedEntry);
+        }
     }
 
     function handleKey(event) {
         switch (event.key) {
         case Qt.Key_Escape:
-            if (modal.keyboardNavigationActive) {
-                modal.keyboardNavigationActive = false;
+            if (ClipboardService.keyboardNavigationActive) {
+                ClipboardService.keyboardNavigationActive = false;
             } else {
                 modal.hide();
             }
@@ -55,9 +65,9 @@ QtObject {
             return;
         case Qt.Key_Down:
         case Qt.Key_Tab:
-            if (!modal.keyboardNavigationActive) {
-                modal.keyboardNavigationActive = true;
-                modal.selectedIndex = 0;
+            if (!ClipboardService.keyboardNavigationActive) {
+                ClipboardService.keyboardNavigationActive = true;
+                ClipboardService.selectedIndex = 0;
             } else {
                 selectNext();
             }
@@ -65,11 +75,11 @@ QtObject {
             return;
         case Qt.Key_Up:
         case Qt.Key_Backtab:
-            if (!modal.keyboardNavigationActive) {
-                modal.keyboardNavigationActive = true;
-                modal.selectedIndex = 0;
-            } else if (modal.selectedIndex === 0) {
-                modal.keyboardNavigationActive = false;
+            if (!ClipboardService.keyboardNavigationActive) {
+                ClipboardService.keyboardNavigationActive = true;
+                ClipboardService.selectedIndex = 0;
+            } else if (ClipboardService.selectedIndex === 0) {
+                ClipboardService.keyboardNavigationActive = false;
             } else {
                 selectPrevious();
             }
@@ -85,9 +95,9 @@ QtObject {
             switch (event.key) {
             case Qt.Key_N:
             case Qt.Key_J:
-                if (!modal.keyboardNavigationActive) {
-                    modal.keyboardNavigationActive = true;
-                    modal.selectedIndex = 0;
+                if (!ClipboardService.keyboardNavigationActive) {
+                    ClipboardService.keyboardNavigationActive = true;
+                    ClipboardService.selectedIndex = 0;
                 } else {
                     selectNext();
                 }
@@ -95,18 +105,18 @@ QtObject {
                 return;
             case Qt.Key_P:
             case Qt.Key_K:
-                if (!modal.keyboardNavigationActive) {
-                    modal.keyboardNavigationActive = true;
-                    modal.selectedIndex = 0;
-                } else if (modal.selectedIndex === 0) {
-                    modal.keyboardNavigationActive = false;
+                if (!ClipboardService.keyboardNavigationActive) {
+                    ClipboardService.keyboardNavigationActive = true;
+                    ClipboardService.selectedIndex = 0;
+                } else if (ClipboardService.selectedIndex === 0) {
+                    ClipboardService.keyboardNavigationActive = false;
                 } else {
                     selectPrevious();
                 }
                 event.accepted = true;
                 return;
             case Qt.Key_C:
-                if (modal.keyboardNavigationActive) {
+                if (ClipboardService.keyboardNavigationActive) {
                     copySelected();
                     event.accepted = true;
                 }
@@ -123,19 +133,27 @@ QtObject {
                 return;
             case Qt.Key_Return:
             case Qt.Key_Enter:
-                if (modal.keyboardNavigationActive) {
-                    modal.pasteSelected();
+                if (ClipboardService.keyboardNavigationActive) {
+                    if (SettingsData.clipboardEnterToPaste) {
+                        copySelected();
+                    } else {
+                        modal.pasteSelected();
+                    }
                     event.accepted = true;
                 }
                 return;
             }
         }
 
-        if (modal.keyboardNavigationActive) {
+        if (ClipboardService.keyboardNavigationActive) {
             switch (event.key) {
             case Qt.Key_Return:
             case Qt.Key_Enter:
-                copySelected();
+                if (SettingsData.clipboardEnterToPaste) {
+                    modal.pasteSelected();
+                } else {
+                    copySelected();
+                }
                 event.accepted = true;
                 return;
             case Qt.Key_Delete:
