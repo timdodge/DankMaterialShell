@@ -1231,6 +1231,12 @@ Item {
     LockPowerMenu {
         id: powerMenu
         showLogout: false
+        powerActionConfirmOverride: GreetdSettings.powerActionConfirm
+        powerActionHoldDurationOverride: GreetdSettings.powerActionHoldDuration
+        powerMenuActionsOverride: GreetdSettings.powerMenuActions
+        powerMenuDefaultActionOverride: GreetdSettings.powerMenuDefaultAction
+        powerMenuGridLayoutOverride: GreetdSettings.powerMenuGridLayout
+        requiredActions: ["poweroff"]
         onClosed: {
             if (isPrimaryScreen && inputField && inputField.forceActiveFocus) {
                 Qt.callLater(() => inputField.forceActiveFocus());

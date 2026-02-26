@@ -518,7 +518,7 @@ Singleton {
     property int osdPosition: SettingsData.Position.BottomCenter
     property bool osdVolumeEnabled: true
     property bool osdMediaVolumeEnabled: true
-    property bool osdMediaPlaybackEnabled: true
+    property bool osdMediaPlaybackEnabled: false
     property bool osdBrightnessEnabled: true
     property bool osdIdleInhibitorEnabled: true
     property bool osdMicMuteEnabled: true
@@ -572,6 +572,10 @@ Singleton {
             "widgetTransparency": 1.0,
             "squareCorners": false,
             "noBackground": false,
+            "maximizeWidgetIcons": false,
+            "maximizeWidgetText": false,
+            "removeWidgetPadding": false,
+            "widgetPadding": 8,
             "gothCornersEnabled": false,
             "gothCornerRadiusOverride": false,
             "gothCornerRadiusValue": 12,
@@ -584,6 +588,7 @@ Singleton {
             "widgetOutlineOpacity": 1.0,
             "widgetOutlineThickness": 1,
             "fontScale": 1.0,
+            "iconScale": 1.0,
             "autoHide": false,
             "autoHideDelay": 250,
             "showOnWindowsOpen": false,
@@ -1026,6 +1031,7 @@ Singleton {
             elif command -v dconf >/dev/null 2>&1; then
             dconf read /org/gnome/desktop/interface/icon-theme 2>/dev/null | sed "s/'//g"
             fi`;
+
             Proc.runCommand("detectCosmicIconTheme", ["sh", "-c", detectScript], (output, exitCode) => {
                 if (exitCode !== 0)
                     return;

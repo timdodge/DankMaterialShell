@@ -288,6 +288,10 @@ Item {
         screen: root.screen
         visible: false
         color: "transparent"
+        Component.onCompleted: {
+            if (typeof updatesEnabled !== "undefined" && !root.overlayContent)
+                updatesEnabled = false;
+        }
 
         WlrLayershell.namespace: root.layerNamespace + ":background"
         WlrLayershell.layer: WlrLayershell.Top
